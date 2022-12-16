@@ -6,7 +6,118 @@ Created on Mon Dec 12 16:17:53 2022
 """
 
 import cvxpy as cp
-from poly import pol
+import numpy as np
+from poly import poly
+
+class prMDP:
+    
+    def __init__(self, S, sI, Act, V, P, R):
+        
+        self.S = S
+        self.sI = sI
+        self.Act = Act
+        self.V = V
+        self.P = P
+        self.R = R
+
+        self.term = set([s for s in self.S if not 
+                         any([(s,a) in self.P for a in self.Act]) ])
+        self.Snonterm = self.S - self.term
+        
+
+
+def prMDP_reza():
+    
+    states = set({0,1,2,3})
+    actions = set({0})
+    
+    params = {
+        'alpha': cp.Parameter(value = 0.11),
+        'beta': cp.Parameter(value = 0.11),
+        }
+    
+    sp = [1,2,3]
+    
+    A = np.vstack((
+            np.kron(np.eye(len(sp)), np.array([[-1],[1]])),
+        ))
+
+    b = np.array([
+        -0.1,
+        poly(params['alpha'], {0: 0.35, 1: -1}),
+        -0.1,
+        poly(params['alpha'], {0: 0.35, 1: -1}),
+        poly(params['beta'], {0: -0.3, 1: -2}),
+        0.9,
+        ])
+    
+    transfunc = {
+        (0,0): {'sp': sp, 'A': A, 'b': b}
+        }
+    
+    reward = [0,0,0,1]
+    
+    sI = {0: 1}
+    
+    policy = {
+        0: {0: 1}
+        }
+    
+    M = prMDP(states, sI, actions, params, transfunc, reward)
+    
+    return M, policy
+
+
+
+def prMDP_3S():
+    
+    states = set({0,1,2,3})
+    actions = set({0})
+    
+    params = {
+        '01_low': cp.Parameter(value = 0.4),
+        '01_upp': cp.Parameter(value = 0.6),
+        '02_low': cp.Parameter(value = 0.3),
+        '02_upp': cp.Parameter(value = 0.55),
+        '03_low': cp.Parameter(value = 0.1),
+        '03_upp': cp.Parameter(value = 0.5),
+        }
+    
+    sp = [1,2,3]
+    
+    A = np.vstack((
+            np.kron(np.eye(len(sp)), np.array([[-1],[1]])),
+        ))
+
+    b = np.array([
+        poly(params['01_low'], {1: -1}),
+        poly(params['01_upp'], {1: 1}),
+        poly(params['02_low'], {1: -1}),
+        poly(params['02_upp'], {1: 1}),
+        poly(params['03_low'], {1: -1}),
+        poly(params['03_upp'], {1: 1}),
+        # -1, 1
+        ])
+    
+    transfunc = {
+        (0,0): {'sp': sp, 'A': A, 'b': b}
+        }
+    
+    reward = [0,2,2,3]
+    
+    sI = {0: 1}
+    
+    policy = {
+        0: {0: 1}
+        }
+    
+    M = prMDP(states, sI, actions, params, transfunc, reward)
+    
+    return M, policy
+
+    
+    
+    
 
 def IMC_3state():
 
