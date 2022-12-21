@@ -1,6 +1,8 @@
 import time
 import numpy as np
 
+from core.poly import poly
+
 def TicTocGenerator():
     ''' Generator that returns the elapsed run time '''
     ti = time.time() # initial time
@@ -60,3 +62,18 @@ def ticDiff():
     ''' Start time recorder '''
     # Records a time in TicToc, marks the beginning of a time interval
     tocDiff(False)
+    
+    
+    
+def unit_vector(size, pos):
+    v = np.zeros(size)
+    v[pos] = 1
+    return v
+
+
+
+valuate = np.vectorize(lambda x: x.val() if isinstance(x, poly) else x, 
+                     otypes=[float])
+
+deriv_valuate = np.vectorize(lambda x,y: x.deriv_eval(y) if isinstance(x, poly) else 0, 
+                     otypes=[float])

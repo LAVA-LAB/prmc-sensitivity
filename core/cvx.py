@@ -1,4 +1,104 @@
 import cvxpy as cp
+from core.poly import poly
+
+def verify_cvx(M, policy, verbose = True, solver = 'SCS'):
+    
+    if verbose:
+        print('\nSolve LP for given formula...')
+    
+    # Define decision variables
+    x = cp.Variable(len(M.states), nonneg=True)
+    alpha = {}
+    beta  = {}
+    
+    for s in M.states: 
+        for a in s.actions:
+            if a.robust:
+                alpha[(s.id, a.id)] = cp.Variable(len(a.model.b))
+                beta[(s.id, a.id)]  = cp.Variable()
+    
+    # Objective function
+    objective = cp.Maximize( cp.sum([prob*x[s] for s,prob in M.sI.items()]) )
+    
+    cns = {}
+    RHS = {}
+    
+    # Constraints per state (under the provided policy)
+    for s in M.states:
+        if verbose:
+            print(' - Add constraints for state', s)
+            
+        # If not a terminal state
+        if not s.terminal:
+            
+            if policy.deterministic:
+                choice = policy.get_choice(s.id)
+                action = choice.get_deterministic_choice()
+                pol = {action: 1}
+            
+            RHS[s] = 0
+                
+            for a_id,prob in pol.items():
+                
+                a = s.actions_dict[a_id]
+                
+                if a.robust:
+                    
+                    # Add constraints for an uncertain probability distribution
+                    b_alpha = [b.expr()*alph if isinstance(b, poly) else b*alph
+                               for b,alph in zip(a.model.b, alpha[(s.id, a.id)])]
+                    
+                    RHS[s] -= prob * (cp.sum(b_alpha) + beta[(s.id, a.id)])
+                    
+                    # Add constraints on dual variables for each state-action pair
+                    cns[(s.id, a.id)] = a.model.A.T @ alpha[(s.id, a.id)] + x[a.successors] + beta[(s.id, a.id)] == 0
+                
+                    cns[('ineq',s,a)] = alpha[(s.id, a.id)] >= 0
+                    
+                else:
+                    
+                    # Add constraints for a precise probability distribution
+                    RHS[s] = prob * (x[a.model.states] @ a.model.probabilities)
+                    
+                    
+                print( M.rewards.get_state_reward(s.id) )
+                print( RHS[s] )
+                cns[s] = x[s.id] == M.rewards.get_state_reward(s.id) + RHS[s]
+            
+        # If terminal state, reward equals instantaniously given value
+        else:
+            cns[s] = x[s.id] == M.rewards.get_state_reward(s.id)
+            
+    cvx_prob = cp.Problem(objective = objective, constraints = cns.values())
+    
+    if verbose:
+        print('Is problem DCP?', cvx_prob.is_dcp(dpp=True))
+    
+    if solver == 'GUROBI':
+        cvx_prob.solve(solver='GUROBI')
+    else:
+        cvx_prob.solve(solver='SCS', requires_grad=True, eps=1e-14, max_iters=10000, mode='dense')
+        cvx_prob.backward()
+    
+    if verbose:
+        print('Status:', cvx_prob.status)
+    
+    return cvx_prob, cns, x, alpha, beta
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def solve_LP(states, sI, edges, states_post, states_pre, states_nonterm, 
              reward, verbose=True):

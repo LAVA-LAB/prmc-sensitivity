@@ -1,7 +1,7 @@
 import cvxpy as cp
 import numpy as np
 
-class poly:
+class poly(object):
     
     def __init__(self, param, coeff):
         '''
@@ -27,11 +27,12 @@ class poly:
         for p,c in enumerate(self.coeff):
             if c == 0:
                 continue
+            elif c == 1 and p==0:
+                add_c = '1'
             elif c == 1:
                 add_c = ''
             else:
                 add_c = str(c)
-            
             
             if p == 0:
                 add_p = ''
@@ -62,7 +63,20 @@ class poly:
     def expr(self):
         # Evaluate the polynomial to get the CVXPY expression
         
-        return cp.sum([c * self.par ** i for i,c in enumerate(self.coeff)])
+        expr = 0
+        for p,c in enumerate(self.coeff):
+            if p == 0:
+                expr += c
+            elif p == 1:
+                expr += self.par
+            elif c == 0:
+                continue
+            elif c == 1:
+                expr += self.par ** p
+                
+        return expr
+        
+        # return cp.sum([c * self.par ** i for i,c in enumerate(self.coeff)])
     
     def val(self):
         # Evaluate the polynomial and return the value evaluated at the 

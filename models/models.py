@@ -7,7 +7,7 @@ Created on Mon Dec 12 16:17:53 2022
 
 import cvxpy as cp
 import numpy as np
-from poly import poly
+from core.poly import poly
 
 class prMDP:
     
@@ -32,8 +32,8 @@ def prMDP_reza():
     actions = set({0})
     
     params = {
-        'alpha': cp.Parameter(value = 0.11),
-        'beta': cp.Parameter(value = 0.11),
+        'alpha': cp.Parameter(value = 0.1),
+        'beta': cp.Parameter(value = 0.15),
         }
     
     sp = [1,2,3]

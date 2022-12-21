@@ -5,10 +5,10 @@ import copy
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 
-from commons import tocDiff
-from cvx import solve_LP, sensitivity_LP
-from models import prMDP_3S, prMDP_reza
-from poly import poly    
+from core.commons import tocDiff
+from core.cvx import solve_LP, sensitivity_LP
+from models.models import prMDP_3S, prMDP_reza
+from core.poly import poly    
 
 
 M, policy = prMDP_reza()
