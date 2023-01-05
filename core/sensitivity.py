@@ -14,7 +14,9 @@ from core.commons import unit_vector, valuate, deriv_valuate
 
 class gradients_cvx:
     
-    def __init__(self, M, PI, x, alpha, beta, cns):
+    def __init__(self, M, PI, x, alpha, beta, cns, verbose = False):
+        
+        print('\nDefine optimization problem to compute gradients...')
         
         # Store variables in object
         self.x          = x
@@ -50,8 +52,9 @@ class gradients_cvx:
                         
                         self.Dtheta_Nabla_L[(s.id, a.id)] = cp.Parameter(len(a.model.b))
         
-        for s in M.states:        
-            print('\nAdd for state {}'.format(s.id))
+        for s in M.states:
+            if verbose:
+                print('\nAdd for state {}'.format(s.id))
             
             # 1) Dx h(y,theta).T @ Nabla V^nu = 0
             # For each state: Vnu_primal of that state, plus the sum of all Vnu_dual
@@ -68,7 +71,7 @@ class gradients_cvx:
                 if M.states_dict[s_pre].actions_dict[a_id] in PI[s_pre]:
                     
                     a = M.states_dict[s_pre].actions_dict[a_id]
-                    SUM -= PI[s_pre][a] * p * self.Vnu_primal[s_pre]
+                    SUM -= M.DISCOUNT * PI[s_pre][a] * p * self.Vnu_primal[s_pre]
                     
             self.Vcns[('g1', s.id)] = self.Vnu_primal[s.id] + SUM == 0
             
@@ -84,7 +87,7 @@ class gradients_cvx:
                     # derivative of that whole thing wrt the parameter
                     self.Vcns[('g2', s.id, a.id)] = \
                         - self.Vlambda[(s.id, a.id)] \
-                        + prob * valuate(a.model.b) * self.Vnu_primal[s.id] \
+                        + M.DISCOUNT * prob * valuate(a.model.b) * self.Vnu_primal[s.id] \
                         + valuate(a.model.A) @ self.Vnu_dual[(s.id, a.id)] == - self.Dtheta_Nabla_L[(s.id, a.id)]
                         
                     # 3)
@@ -94,13 +97,13 @@ class gradients_cvx:
                     # action a times the Vnu_primal variable, plus the sum of Vnu_dual
                     # over all places where it occurs, is zero.
                     self.Vcns[('g3', s.id, a.id)] = \
-                        prob * self.Vnu_primal[s.id] + cp.sum(self.Vnu_dual[(s.id, a.id)]) == 0
+                        M.DISCOUNT * prob * self.Vnu_primal[s.id] + cp.sum(self.Vnu_dual[(s.id, a.id)]) == 0
                 
                     # 4) For each lambda / alpha vector
                     
                     # Lambda-tilde times Valpha == alpha* times Vlambda
-                    lambda_alpha = cp.multiply(cns[('ineq', s.id, a.id)].dual_value, self.Valpha[(s.id, a.id)])
-                    alpha_lambda = cp.multiply(alpha[(s.id, a.id)].value, self.Vlambda[(s.id, a.id)])
+                    lambda_alpha = cp.multiply(self.cns[('ineq', s.id, a.id)].dual_value, self.Valpha[(s.id, a.id)])
+                    alpha_lambda = cp.multiply(self.alpha[(s.id, a.id)].value, self.Vlambda[(s.id, a.id)])
                     self.Vcns[('g4', s.id, a.id)] = (lambda_alpha == alpha_lambda)
                         
                     del lambda_alpha
@@ -114,7 +117,8 @@ class gradients_cvx:
             # 5a) For each reward equality constraint, replace original decision
             # variables with the ones of the sensitivity problem
             if s.terminal:
-                print('-- State {} is terminal'.format(s.id))
+                if verbose:
+                    print('-- State {} is terminal'.format(s.id))
                 
                 # If state is terminal, sensitivity is zero
                 self.Vcns[('g5a', s.id)] = \
@@ -126,20 +130,24 @@ class gradients_cvx:
                 # For each action in the policy at this state
                 for a, prob in PI[s.id].items():
                     
-                    print('-- Add action {} with probability {:.3f}'.format(a.id, prob))
+                    if verbose:
+                        print('-- Add action {} with probability {:.3f}'.format(a.id, prob))
                     
                     if a.robust:
                         
-                        print('--- Robust action')
+                        if verbose:
+                            print('--- Robust action')
                         SUM += prob * (valuate(a.model.b) @ self.Valpha[(s.id, a.id)] + self.Vbeta[(s.id, a.id)])
                 
                     else:
                         
-                        print('--- Nonrobust action')
+                        if verbose:
+                            print('--- Nonrobust action')
                         SUM -= prob * (a.model.probabilities @ self.Vx[a.model.states])
                         
-                self.Vcns[('g5a', s.id)] = self.Vx[s.id] + SUM == -self.Dtheta_h[s.id]
+                self.Vcns[('g5a', s.id)] = self.Vx[s.id] + M.DISCOUNT*SUM == -self.Dtheta_h[s.id]
                     
+        print('Build optimization problem...')
         self.sens_prob = cp.Problem(objective = cp.Minimize(0), constraints = self.Vcns.values())
               
         if self.sens_prob.is_dcp(dpp=True):
@@ -148,6 +156,8 @@ class gradients_cvx:
             print('Program does not satisfy DCP rule set')
     
     def solve(self, M, PI, theta, solver = 'SCS'):
+        
+        print('\nSet parameter values...')
         
         # Set entries depending on the parameter theta
         Dtheta_h = np.zeros(len(M.states))
@@ -165,7 +175,7 @@ class gradients_cvx:
               
         self.Dtheta_h.value = Dtheta_h          
              
-        tocDiff()
+        print('\nSolve sensitivity program...')
         
         # Solve optimization problem
         if solver == 'GUROBI':

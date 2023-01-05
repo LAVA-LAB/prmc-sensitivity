@@ -22,7 +22,7 @@ def L0_polytope(center, size):
     n = len(center)
 
     # Initialize matrix
-    A = np.kron(np.eye(n), np.array([[-1],[-1]]))
+    A = np.kron(np.eye(n), np.array([[-1],[1]]))
     
     b = np.zeros((2*n), dtype=object)
     

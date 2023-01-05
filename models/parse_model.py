@@ -124,7 +124,7 @@ def parse_storm(model, policy, uncertainty_model, norm_bound,
                 
                 M.states_dict[s.id].actions_dict[a.id].successors = successors
                 
-                if len(successors) == 1 or s.id == 0:
+                if len(successors) == 1:
                     
                     # Deterministic transition (no uncertainty model)
                     M.states_dict[s.id].actions_dict[a.id].deterministic = True
@@ -147,10 +147,16 @@ def parse_storm(model, policy, uncertainty_model, norm_bound,
                     # Determine margin between precise distribution and simplex
                     norm_concat = np.concatenate([probabilities, 1-probabilities])
                     norm_margin = np.min(np.abs(norm_concat))
+                    
+                    delta = 1e-6
     
-                    if norm_bound > norm_margin and verbose:
-                            print(' -- Reduce size of L1 uncertainty set to', norm_margin)
-                    M.parameters[(s.id, a.id)] = cp.Parameter(value = min(norm_margin, norm_bound))
+                    print('check...')
+                    print('norm_bound', norm_bound)
+                    print('norm_margin', norm_margin)
+    
+                    if norm_bound >= norm_margin - delta:
+                        print(' -- Reduce size of L1 uncertainty set to', norm_margin - delta)
+                    M.parameters[(s.id, a.id)] = cp.Parameter(value = min(norm_margin - delta, norm_bound))
                     
                     A, b = uncertainty_model(probabilities, M.parameters[(s.id, a.id)])
                     

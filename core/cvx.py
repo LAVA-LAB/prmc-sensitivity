@@ -1,7 +1,7 @@
 import numpy as np
 import cvxpy as cp
 from core.poly import poly
-from copy import copy
+from copy import copy, deepcopy
 import sys
 import pandas as pd
 
@@ -10,9 +10,6 @@ class verify_cvx:
     def __init__(self, M, PI, verbose = True):
         
         self.times_solved = 0
-        
-        DISCOUNT = 1.0
-        ALPHA_PENALTY = 1e-7
         
         if verbose:
             print('\nSolve LP for given formula...')
@@ -30,11 +27,10 @@ class verify_cvx:
                         self.beta[(s.id, a.id)]  = cp.Variable()
         
         # Objective function
-        penalty = ALPHA_PENALTY * cp.sum([ cp.sum(alph) for alph in self.alpha.values()])
+        penalty = M.ALPHA_PENALTY * cp.sum([ cp.sum(alph) for alph in self.alpha.values()])
         objective = cp.Maximize(cp.sum([prob*self.x[s] for s,prob in M.sI.items()]) - penalty)
         
         self.cns = {}
-        RHS = {}
         r   = {}
         
         # Constraints per state (under the provided policy)
@@ -43,9 +39,9 @@ class verify_cvx:
                 print('- Add constraints for state', s.id)
              
             if M.rewards.has_state_rewards:
-                r[s] = M.rewards.get_state_reward(s.id) + s.id*0.01 
+                r[s] = M.rewards.get_state_reward(s.id)
             elif M.rewards.has_state_action_rewards:
-                r[s] = M.rewards.get_state_action_reward(s.id) + s.id*0.01
+                r[s] = M.rewards.get_state_action_reward(s.id)
             else:
                 print('Error: could not parse reward model; abort...')
                 sys.exit()
@@ -61,7 +57,7 @@ class verify_cvx:
                     if a.robust:
                         
                         if verbose:
-                            print('-- Action {} in state {} is robust'.format(s.id, a.id))
+                            print('-- Action {} in state {} is robust'.format(a.id, s.id))
                         
                         # Add constraints for an uncertain probability distribution
                         bXalpha = [b.expr()*alph if isinstance(b, poly) else b*alph
@@ -84,8 +80,9 @@ class verify_cvx:
                         # Add constraints for a precise probability distribution
                         RHS += prob * (self.x[a.model.states] @ a.model.probabilities)
                       
-            self.cns[s.id] = self.x[s.id] <= r[s] + DISCOUNT * RHS
-                
+            self.cns[s.id] = self.x[s.id] == r[s] + M.DISCOUNT * RHS
+            del RHS
+            
         self.prob = cp.Problem(objective = objective, constraints = self.cns.values())
         
         if verbose:
@@ -94,10 +91,10 @@ class verify_cvx:
             else:
                 print('Program does not satisfy DCP rule set')
     
-    def solve(self, solver = 'SCS', verbose = False):
+    def solve(self, solver = 'SCS', verbose = False, store_initial = False):
         
         if solver == 'GUROBI':
-            self.prob.solve(solver='GUROBI')
+            self.prob.solve(solver='GUROBI', reoptimize=True)
         else:
             self.prob.solve(solver='SCS', requires_grad=True, eps=1e-14, max_iters=10000, mode='dense')
             self.prob.backward()
@@ -106,18 +103,17 @@ class verify_cvx:
             print('Status:', self.prob.status)
             
         # Copy the solution in the initial iteration (for validation purposes)
-        if self.times_solved == 0:
-            self.x_base = copy(self.x.value)
-        self.times_solved += 1
+        if store_initial:
+            self.x_tilde = copy(self.x.value)
         
     def delta_solve(self, theta, delta, grad_analytical, solver = 'SCS', 
                     verbose = False):
         
         theta.value += delta
-        self.solve(solver = solver)
+        self.solve(solver = solver, verbose = True)
         theta.value -= delta
         
-        grad_numerical = (self.x.value-self.x_base)/delta
+        grad_numerical = (self.x.value-self.x_tilde)/delta
         grad_diff = np.round(grad_analytical - grad_numerical, 6)
         cum_diff = sum(grad_diff)
         
@@ -134,7 +130,7 @@ class verify_cvx:
         
     def check_complementary_slackness(self):
         
-        print('Check complementary slackness...')
+        print('\nCheck complementary slackness...')
         
         # Check if assumption is satisfied
         for (s,a) in self.alpha.keys():

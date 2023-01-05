@@ -27,46 +27,59 @@ SOLVER = 'GUROBI'
 # model, policy = load_prism_model(stormpy.examples.files.prism_dtmc_die)
 # TERM_LABELS = ('done')
 
-path = '/home/thom/documents/sensitivity-prmdps/prmdp-sensitivity-git/models/mdp/slipgrid.nm'
-formula = "Rmin=? [F \"goal\"]"
-TERM_LABELS = ('goal')
+# path = '/home/thom/documents/sensitivity-prmdps/prmdp-sensitivity-git/models/mdp/slipgrid.nm'
+# formula = "Rmin=? [F \"goal\"]"
+# TERM_LABELS = ('goal')
+
+# path = '/home/thom/documents/sensitivity-prmdps/prmdp-sensitivity-git/models/dtmc/brp-16-2.pm'
+# formula = None
+# TERM_LABELS = ('target')
 
 # Load PRISM model with STORM
-model, policy = load_prism_model(path, formula)
+# model, policy = load_prism_model(path, formula)
 
-uncertainty_model = L0_polytope
-L1_size     = 0.1
+path = '/home/thom/documents/sensitivity-prmdps/prmdp-sensitivity-git/models/dtmc/dummy.nm'
+TERM_LABELS = ('done')
+model, policy = load_prism_model(path)
+
+uncertainty_model = L1_polytope
+L1_size     = 0.000001
 
 # Parse model and policy
 M = parse_storm(model, policy, uncertainty_model, L1_size, TERM_LABELS)
+
+# Hyperparameters for optimization problem
+M.DISCOUNT          = 0.9
+M.ALPHA_PENALTY     = 0
+M.DELTA     	    = 1e-6
+
+# %%
 
 PI = parse_policy(M, policy)
 PI = generate_random_policy(M)
 
 # Verify loaded model by solving the optimization program
 CVX = verify_cvx(M, PI, verbose=True)
-CVX.solve(solver=SOLVER)
+CVX.solve(solver=SOLVER, store_initial = True)
 
 print('\nValue of the measure in initial state:', CVX.prob.value)
 
 # Check if complementary slackness is satisfied
 CVX.check_complementary_slackness()
 
-assert False
-
 # %%    
 
 SVT = gradients_cvx(M, PI, CVX.x, CVX.alpha, CVX.beta, CVX.cns)
 
-DELTA = 1e-6
-
 for THETA_SA,THETA in M.parameters.items():
 
     tocDiff(False)
-    Vx = SVT.solve(M, PI, THETA, SOLVER)
+    Vx = SVT.solve(M, PI, THETA, 'SCS')
     print('\nParameter {} solved in {} seconds'.format(THETA_SA, tocDiff(False)))
+    print('Gradient in initial state:', Vx[list(M.sI.keys())].value)
     
     grad_analytical   = Vx.value[0:len(M.states)]
-    cum_diff = CVX.delta_solve(THETA, DELTA, grad_analytical, SOLVER)
+    
+    cum_diff = CVX.delta_solve(THETA, M.DELTA, grad_analytical, SOLVER, verbose = False)
     
     print('- Cum.diff. between analytical and numerical is {:.3f}'.format(cum_diff))

@@ -1,0 +1,19 @@
+// Dummy DTMC from the motivating example
+// Label for terminal state: 'done'
+dtmc
+
+module dummy
+
+	s : [0..3] init 0;
+	[] s=0 -> 0.4  : (s'=1) + 0.4 : (s'=2) + 0.2 : (s'=3);
+	[] s=1 -> 0.25 : (s'=1) + 0.75 : (s'=3);
+	[] s=2 -> 0.9  : (s'=2) + 0.1 : (s'=3);
+	[] s=3 -> 1.0  : (s'=3);
+	
+endmodule
+
+rewards "steps"
+	[] s<3 : 1;
+endrewards
+
+label "done" = s=3;
