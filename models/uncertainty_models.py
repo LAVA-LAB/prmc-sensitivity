@@ -2,15 +2,13 @@
 
 import numpy as np
 import itertools
-import polytope
-
 from core.poly import poly
 
 def L0_polytope(center, size):
     
     '''
-    Generate matrix inequalities for the L1 norm around 'center', bounded by
-    the given 'size'
+    Generate matrix inequalities for the L0 norm around 'center', bounded by
+    the given 'size', such that Ap <= b and
 
     Returns
     -------
@@ -27,8 +25,8 @@ def L0_polytope(center, size):
     b = np.zeros((2*n), dtype=object)
     
     for d in range(n):
-        b[2*d]   = poly(param = size, coeff = {0: -center[d], 1: 1})
-        b[2*d+1] = poly(param = size, coeff = {0: center[d], 1: 1})
+        b[2*d]   = poly(param = size, coeff = {0: -np.round(center[d], 3), 1: 1})
+        b[2*d+1] = poly(param = size, coeff = {0: np.round(center[d], 3), 1: 1})
             
     return A,b
 
@@ -47,7 +45,7 @@ def L1_polytope(center, size):
     n = len(center)
 
     # Initialize matrix
-    A = np.zeros((2**n, n), dtype=object)
+    A = np.zeros((2**n, n), dtype=float)
     b = np.zeros((2**n), dtype=object)
     
     # Iterate over all possible perpendicular vectors

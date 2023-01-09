@@ -9,7 +9,7 @@ def load_prism_model(path, formula=None):
     program = stormpy.parse_prism_program(path)
     model = stormpy.build_model(program)
 
-    if model.is_nondeterministic_model:
+    if model.is_nondeterministic_model and not formula is None:
         
         formulas = stormpy.parse_properties(formula, program)
         

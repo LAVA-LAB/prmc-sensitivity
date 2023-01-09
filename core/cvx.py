@@ -5,15 +5,17 @@ from copy import copy, deepcopy
 import sys
 import pandas as pd
 
+from core.commons import unit_vector, valuate, deriv_valuate
+
 class verify_cvx:
     
-    def __init__(self, M, PI, verbose = True):
+    def __init__(self, M, verbose = True):
         
         self.times_solved = 0
         
         if verbose:
             print('\nSolve LP for given formula...')
-        
+            print('- Define variables')
         # Define decision variables
         self.x = cp.Variable(len(M.states), nonneg=True)
         self.alpha = {}
@@ -21,17 +23,25 @@ class verify_cvx:
         
         for s in M.states: 
             if not s.terminal:
-                for a,prob in PI[s.id].items():                
+                for a in s.actions:
                     if a.robust:
                         self.alpha[(s.id, a.id)] = cp.Variable(len(a.model.b))
                         self.beta[(s.id, a.id)]  = cp.Variable()
         
+        if verbose:
+            print('- Define objective')
+        
         # Objective function
-        penalty = M.ALPHA_PENALTY * cp.sum([ cp.sum(alph) for alph in self.alpha.values()])
+        if M.PENALTY == 0:
+            penalty = 0
+        else:
+            penalty = M.PENALTY * cp.sum([bet for bet in self.beta.values()])
         objective = cp.Maximize(cp.sum([prob*self.x[s] for s,prob in M.sI.items()]) - penalty)
         
         self.cns = {}
         r   = {}
+        
+        self.RHS = {}
         
         # Constraints per state (under the provided policy)
         for s in M.states:
@@ -46,12 +56,14 @@ class verify_cvx:
                 print('Error: could not parse reward model; abort...')
                 sys.exit()
             
-            RHS = 0
+            self.RHS[s.id] = 0
             
             # If not a terminal state
-            if not s.terminal:
+            if s.terminal:
+                self.cns[s.id] = self.x[s.id] == 0
+            else:
                 # For each action in the policy
-                for a,prob in PI[s.id].items():
+                for a in s.actions:
                     
                     # If action outcome is robust / uncertain
                     if a.robust:
@@ -63,7 +75,7 @@ class verify_cvx:
                         bXalpha = [b.expr()*alph if isinstance(b, poly) else b*alph
                                    for b,alph in zip(a.model.b, self.alpha[(s.id, a.id)])]
                         
-                        RHS -= prob * (cp.sum(bXalpha) + self.beta[(s.id, a.id)])
+                        self.RHS[s.id] -= s.policy[a.id] * (cp.sum(bXalpha) + self.beta[(s.id, a.id)])
                         
                         # Add constraints on dual variables for each state-action pair
                         self.cns[(s.id, a.id)] = \
@@ -78,26 +90,29 @@ class verify_cvx:
                             print('-- Action {} in state {} is precise'.format(a.id, s.id))
                         
                         # Add constraints for a precise probability distribution
-                        RHS += prob * (self.x[a.model.states] @ a.model.probabilities)
+                        self.RHS[s.id] += s.policy[a.id] * (self.x[a.model.states] @ a.model.probabilities)
                       
-            self.cns[s.id] = self.x[s.id] == r[s] + M.DISCOUNT * RHS
-            del RHS
+                self.cns[s.id] = self.x[s.id] == r[s] + M.DISCOUNT * self.RHS[s.id]
             
         self.prob = cp.Problem(objective = objective, constraints = self.cns.values())
         
         if verbose:
             if self.prob.is_dcp(dpp=True):
-                print('Program satisfies DCP rule set')
+                print('\nProgram satisfies DCP rule set')
             else:
-                print('Program does not satisfy DCP rule set')
+                print('\nProgram does not satisfy DCP rule set')
     
     def solve(self, solver = 'SCS', verbose = False, store_initial = False):
         
+        print('Solve optimization problem...')
+        
         if solver == 'GUROBI':
             self.prob.solve(solver='GUROBI', reoptimize=True)
-        else:
-            self.prob.solve(solver='SCS', requires_grad=True, eps=1e-14, max_iters=10000, mode='dense')
+        elif solver == 'SCS':
+            self.prob.solve(solver='SCS', requires_grad=True, eps=1e-14, max_iters=20000, mode='dense')
             self.prob.backward()
+        else:
+            self.prob.solve(solver=solver)
         
         if verbose:
             print('Status:', self.prob.status)
@@ -138,10 +153,14 @@ class verify_cvx:
                 lambda_zero = np.abs(self.cns[('ineq', s, a)].dual_value) < 1e-9
                 alpha_zero  = np.abs(self.alpha[(s, a)].value) < 1e-9
                 both_zero   = np.sum([lambda_zero, alpha_zero], axis=0)
+                
                 if not np.all(both_zero == 1):
                     print('\nERROR: lambda[i] > 0 XOR alpha[i] > 0 must be true for each i')
                     print('This assumption was not met for state {} and action {}'.format(s,a))
                     print('- Lambda is {}'.format(self.cns[('ineq', s, a)].dual_value))
                     print('- Alpha is {}'.format(self.alpha[(s,a)].value))
+                    print('- Beta is {}'.format(self.beta[(s,a)].value))
                     print('Abort...')
                     sys.exit()
+                    
+                

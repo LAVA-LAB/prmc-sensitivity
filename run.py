@@ -1,291 +1,98 @@
-import cvxpy as cp
-import numpy as np
-import copy
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec 19 10:05:56 2022
 
-from mpl_toolkits import mplot3d
-import matplotlib.pyplot as plt
+@author: Thom Badings
+"""
 
+# %run "~/documents/sensitivity-prmdps/prmdp-sensitivity-git/run_ext.py"
+
+from core.sensitivity import gradients_cvx
 from core.commons import tocDiff
-from core.cvx import solve_LP, sensitivity_LP
-from models.models import prMDP_3S, prMDP_reza
-from core.poly import poly    
+from core.cvx import verify_cvx
+from models.load_model import load_prism_model
+from models.parse_model import parse_storm
+from models.uncertainty_models import L0_polytope, L1_polytope
 
+import numpy as np
+import os
 
-M, policy = prMDP_reza()
+from core.commons import unit_vector, valuate, deriv_valuate
+from core.parse_inputs import parse_inputs
 
-verbose = True
+# Set root directory
+root_dir = os.path.dirname(os.path.abspath(__file__))
 
-if verbose:
-    print('\nSolve LP for expected reward...')
+# Parse arguments
+args = parse_inputs()
 
-# Define decision variables
-x = cp.Variable(len(M.S), nonneg=True)
-alpha = {(s,a): cp.Variable(len(dct['b'])) for (s,a), dct in M.P.items()}
-beta  = {(s,a): cp.Variable() for (s,a), dct in M.P.items()}
+print('---------------------------------------')
+print('START PROGRAM WITH ARGUMENTS:')
+print('Path to model:     ', args.model)
+print('Formula:           ', args.formula)
+print('Term. state label: ', args.terminal_label)
+print('Uncertainty model: ', args.uncertainty_model)
+print('Size of unc. sets: ', args.uncertainty_size)
+print('---------------------------------------\n')
 
-# Objective function
-objective = cp.Maximize( cp.sum([prob*x[s] for s,prob in M.sI.items()]) )
+# Load PRISM model with STORM
+model, policy = load_prism_model(args.model, args.formula)
+policy = None
 
-cns = {}
+if args.uncertainty_model == 'L0':
+    uncertainty_model = L0_polytope
+else:
+    uncertainty_model = L1_polytope
+L1_size = args.uncertainty_size
 
-# Constraints per state (under the provided policy)
-for s in M.S:
-    if verbose:
-        print(' - Add constraints for state', s)
-        
-    # If not a terminal state
-    if s not in M.term:
-        
-        # Add equality constraint on each state reward variable
-        cns[s] = x[s] == M.R[s] - cp.sum([ 
-                    prob * (cp.sum([ b.expr()*alp if isinstance(b, poly) else b*alp 
-                                    for b,alp in zip(M.P[(s,a)]['b'], alpha[(s,a)]) ]) + beta[(s,a)])
-                    for a,prob in policy[s].items() ])
-        
-        # Add constraints on dual variables for each state-action pari
-        for a in M.Act:
-            cns[(s,a)] = M.P[(s,a)]['A'].T @ alpha[(s,a)] + x[M.P[(s,a)]['sp']] + beta[(s,a)] == 0
-        
-            cns[('ineq',s,a)] = alpha[(s,a)] >= 0
-        
-    # If terminal state, reward equals instantaniously given value
-    else:
-        cns[s] = x[s] == M.R[s]
-        
-prob = cp.Problem(objective = objective, constraints = cns.values())
+# Parse model and policy
+M = parse_storm(model, policy, uncertainty_model, L1_size, args.terminal_label)
 
-if verbose:
-    print('Is problem DCP?', prob.is_dcp(dpp=True))
-
-prob.solve(requires_grad=True, eps=1e-14, max_iters=10000, mode='dense')
-prob.backward()
-
-if verbose:
-    print('Status:', prob.status)
-    print('x =',x.value)
-
-######
-
-def e(size, pos):
-    v = np.zeros(size)
-    v[pos] = 1
-    return v
-
-import scipy.linalg as linalg
-
-valuate = np.vectorize(lambda x: x.val() if isinstance(x, poly) else x, 
-                     otypes=[float])
-
-deriv_valuate = np.vectorize(lambda x: x.deriv_eval(M.V['alpha']) if isinstance(x, poly) else 0, 
-                     otypes=[float])
-
-print('\n\n')
+# Hyperparameters for optimization problem
+M.DISCOUNT          = 1.00
+M.PENALTY           = 1e-6
+M.DELTA     	    = 1e-6
 
 # %%
 
-A_elems = []
-dA_elems = []
-C_rows = []
-D_elems = []
-E_cols = []
+# Verify loaded model by solving the optimization program
+CVX = verify_cvx(M, verbose=True)
+CVX.solve(solver = args.solver, store_initial = True, verbose = True)
 
-for s in M.S:
-    if any([(s,a) in M.P for a in M.Act]):
-        A_elems += [list(policy[s][a] * valuate(M.P[(s,a)]['b'])) for a in M.Act ]
-        dA_elems += [list(policy[s][a] * deriv_valuate(M.P[(s,a)]['b'])) for a in M.Act ]
-        
-        for sp in M.P[(s,a)]['sp']:
-            C_rows += [e(len(M.S), sp)]
-        D_elems += [valuate(M.P[(s,a)]['A']).T]
-        E_cols += [np.ones((len(M.P[(s,a)]['sp']), 1))]
-    else:
-        A_elems += [[]]
-        dA_elems += [[]]
+print('\nValue of the measure in initial state:', CVX.prob.value)
 
-B = np.array([[np.sum([policy[s][a]*beta[(s,a)].value for a in M.Act if (s,a) in M.P]) for s in M.S]]).T
+# Check if complementary slackness is satisfied
+CVX.check_complementary_slackness()
 
-A = np.block([
-        [np.eye(len(M.S)),  linalg.block_diag(*A_elems), B],
-        [np.array(C_rows),  linalg.block_diag(*D_elems), linalg.block_diag(*E_cols)]
-    ])
+# %%    
 
-alphaSum = sum(a.size for a in alpha.values())
-G = np.block([
-        [np.zeros((alphaSum, len(M.S))), -np.eye(alphaSum), np.zeros((alphaSum, len(beta)))]
-    ])
+'''
+SVT = gradients_cvx(M, CVX.x, CVX.alpha, CVX.beta, CVX.cns)
 
-lambda_flat = np.array([cns[('ineq',s,a)].dual_value for a in M.Act for s in M.S if ('ineq',s,a) in cns]).flatten()
-nu_flat     = np.concatenate([
-        np.array([cns[(s)].dual_value for s in M.S]).flatten(),
-        np.array([cns[(s,a)].dual_value for a in M.Act for s in M.S if (s,a) in cns]).flatten()
-    ])
+tocDiff(False)
 
-decvar_flat = np.concatenate([
-                x.value,
-                alpha[(0,0)].value,
-                [beta[(0,0)].value]
-                ])
+GRAD_old = np.zeros(len(M.parameters))
 
-Dgx = np.block([
-        [np.zeros((G.T.shape[0], G.T.shape[0])),    G.T,                                    A.T],
-        [np.diag(lambda_flat) @ G,                  np.diag(G @ decvar_flat),               np.zeros((len(lambda_flat), A.T.shape[1]))],
-        [A,                                         np.zeros((A.shape[0], G.T.shape[1])),   np.zeros((A.shape[0], A.T.shape[1]))]
-    ])
+for i, (THETA_SA,THETA) in enumerate(M.parameters.items()):
 
-dA = np.block([
-        [np.zeros((len(M.S),len(M.S))),     linalg.block_diag(*dA_elems),                   np.zeros(B.shape)],
-        [np.zeros(np.array(C_rows).shape),  np.zeros(linalg.block_diag(*D_elems).shape),    np.zeros(linalg.block_diag(*E_cols).shape)]
-    ])
-
-Dgv = np.concatenate([
-        dA.T @ nu_flat,
-        np.zeros(len(lambda_flat)),
-        dA @ decvar_flat
-    ])
+    Vx = SVT.solve(M, THETA, args.solver)
+    print('\nParameter {} solved in {} seconds'.format(THETA_SA, tocDiff(False)))
+    print('Gradient in initial state:', Vx[list(M.sI.keys())].value)
+    
+    grad_analytical   = Vx.value[0:len(M.states)]
+    cum_diff = CVX.delta_solve(THETA, M.DELTA, grad_analytical, args.solver, verbose = False)
+    
+    print('- Cum.diff. between analytical and numerical is {:.3f}'.format(cum_diff))
+    
+    GRAD_old[i] = Vx[list(M.sI.keys())].value
+'''
 
 # %%
 
-gradients = np.linalg.solve(Dgx, -Dgv)
-
-print('Gradients for parameter alpha')
-print('Analytical:', gradients[0])
-print('From CVXPY:', M.V['alpha'].gradient)
-print('Dgx condition number:', np.linalg.cond(Dgx))
-
-print('\n\n')
-
-# %%
-
-A_elems = []
-dA_elems = []
-C_rows = []
-D_elems = []
-E_cols = []
-
-for s in M.S:
-    if any([(s,a) in M.P for a in M.Act]):
-        A_elems += [list(policy[s][a] * valuate(M.P[(s,a)]['b'])) for a in M.Act ]
-        dA_elems += [list(policy[s][a] * deriv_valuate(M.P[(s,a)]['b'])) for a in M.Act ]
-        
-        for sp in M.P[(s,a)]['sp']:
-            C_rows += [e(len(M.S), sp)]
-        D_elems += [valuate(M.P[(s,a)]['A']).T]
-        E_cols += [np.ones((len(M.P[(s,a)]['sp']), 1))]
-    else:
-        A_elems += [[]]
-        dA_elems += [[]]
-
-B = np.array([[np.sum([policy[s][a]*beta[(s,a)].value for a in M.Act if (s,a) in M.P]) for s in M.S]]).T
-
-A = np.block([
-        [np.eye(len(M.S)),  linalg.block_diag(*A_elems), B],
-        [np.array(C_rows),  linalg.block_diag(*D_elems), linalg.block_diag(*E_cols)]
-    ])
-
-alphaSum = sum(a.size for a in alpha.values())
-G = np.block([
-        [np.zeros((alphaSum, len(M.S))), -np.eye(alphaSum), np.zeros((alphaSum, len(beta)))]
-    ])
-
-lambda_flat = np.array([cns[('ineq',s,a)].dual_value for a in M.Act for s in M.S if ('ineq',s,a) in cns]).flatten()
-nu_flat     = np.concatenate([
-        np.array([cns[(s)].dual_value for s in M.S]).flatten(),
-        np.array([cns[(s,a)].dual_value for a in M.Act for s in M.S if (s,a) in cns]).flatten()
-    ])
-
-decvar_flat = np.concatenate([
-                x.value,
-                alpha[(0,0)].value,
-                [beta[(0,0)].value]
-                ])
-
-BLOCK = np.block([
-        [np.zeros((len(M.S), A.shape[1]))],
-        [np.diag(lambda_flat / np.round(G @ decvar_flat, 6)) @ G],
-        [np.zeros((len(beta), A.shape[1]))]
-    ])
-
-Dgx = np.block([
-        [BLOCK, A.T],
-        [A, np.zeros((A.shape[0], A.T.shape[1]))]
-    ])
-
-dA = np.block([
-        [np.zeros((len(M.S),len(M.S))),     linalg.block_diag(*dA_elems),                   np.zeros(B.shape)],
-        [np.zeros(np.array(C_rows).shape),  np.zeros(linalg.block_diag(*D_elems).shape),    np.zeros(linalg.block_diag(*E_cols).shape)]
-    ])
-
-Dgv = np.concatenate([
-        dA.T @ nu_flat,
-        dA @ decvar_flat
-    ])
-
-# %%
-
-gradients = np.linalg.solve(Dgx, -Dgv)
-
-print('Gradients for parameter alpha')
-print('Analytical:', gradients[0])
-print('From CVXPY:', M.V['alpha'].gradient)
-print('Dgx condition number:', np.linalg.cond(Dgx))
+tocDiff(False)
 
 
-# params, states, edges, reward, sI = IMC_3state()
+from core.sensitivity import gradients_spsolve
 
-
-
-# delta = 1e-6
-
-# # Solve initial LP
-# tocDiff(False)
-# constraints, x, aLow, aUpp = solve_LP(states, sI, edges, states_post, states_pre, states_nonterm, reward)
-# tocDiff()
-
-# assert False
-
-# x_orig = copy.deepcopy(x)
-
-# print('Reward in sI:', np.round(x_orig[sI].value, 8))
-
-# # Setup sensitivity LP
-# Dth_prob, Dth_x, X, Y, Z = sensitivity_LP(states, edges_fix, states_post, states_pre, states_nonterm,
-#                                           constraints, aLow, aUpp)
-
-# # Define for which parameter to differentiate        
-
-# import pandas as pd
-# import numpy as np
-
-# results = pd.DataFrame(columns = ['analytical', 'numerical', 'abs.diff.'])
-
-# for key, param in params.items():
-
-#     for s in states:
-        
-#         X[(s)].value = cp.sum([
-#                         - aLow[(s,ss)].value * edges[(s,ss)][0].deriv_eval(param)
-#                         + aUpp[(s,ss)].value * edges[(s,ss)][1].deriv_eval(param)        
-#                         for ss in states_post[s]])
-    
-#     for (s,ss),e in edges.items():
-        
-#         Y[(s,ss)].value = -constraints[('nu',s)].dual_value * edges[(s,ss)][0].deriv_eval(param)
-#         Z[(s,ss)].value =  constraints[('nu',s)].dual_value * edges[(s,ss)][1].deriv_eval(param)
-                    
-#     Dth_prob.solve()
-    
-    
-#     analytical = np.round(Dth_x[sI].value, 6)
-    
-#     param.value += delta
-    
-#     _, x_delta, _, _ = solve_LP(states, sI, edges, states_post, states_pre, states_nonterm, reward)
-    
-#     numerical = np.round((x_delta[sI].value - x_orig[sI].value) / delta, 6)
-    
-#     param.value -= delta
-    
-#     diff = np.round(analytical - numerical, 4)
-#     results.loc[key] = [analytical, numerical, diff]
-    
-# print(results)
+GRAD = gradients_spsolve(M, CVX)[0,:]
+print('\nLinear equation system for {} parameters solved in {} seconds'.format(len(M.parameters), tocDiff(False)))

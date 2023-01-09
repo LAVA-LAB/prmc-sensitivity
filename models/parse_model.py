@@ -14,6 +14,11 @@ class prMDP:
         
         self.states_dict = {}
         self.parameters = {}
+        self.param2stateAction = {}
+        
+        self.robust_pairs_suc = {}
+        self.robust_constraints = 0
+        self.robust_successors = 0
         
         # Adjacency matrix between successor states and polytope constraints
         self.poly_pre_state = {s: set() for s in range(num_states)}
@@ -81,10 +86,13 @@ class polytope:
         self.A = A
         self.b = b
 
-def parse_storm(model, policy, uncertainty_model, norm_bound, 
+def parse_storm(model, scheduler, uncertainty_model, norm_bound, 
                 terminal_labels = [], verbose = False):
 
     print('Parsing PRISM model...')    
+
+    # Minimum margin between [0,1] bounds and every transition probability
+    DELTA = 1e-6
 
     # Define graph object
     M = prMDP(num_states = len(model.states))
@@ -113,10 +121,28 @@ def parse_storm(model, policy, uncertainty_model, norm_bound,
             
             M.states_dict[s.id].terminal = False
                 
-            # For all possible actions
+            # Retrieve policy for this state
+            # If the model is not nondeterministic or not set, choose random action
+            if scheduler is None:
+                
+                num_actions = len(s.actions)
+                M.states_dict[s.id].policy = {a.id: 1/num_actions for a in s.actions}
+                
+            # Otherwise, follow provided policy
+            else:
+                choice = scheduler.get_choice(s.id)
+                act = choice.get_deterministic_choice()
+                
+                M.states_dict[s.id].policy = {act: 1}
+            
+            # For all possible actions that are also in the policy...
             for a in s.actions:
+                if a.id not in M.states_dict[s.id].policy.keys():
+                    continue
+                
                 if verbose:
                     print('-- Add action {} for state {} with {} transitions'.format(a.id, s.id, len(a.transitions)))
+                
                 M.states_dict[s.id].actions_dict[a.id] = action(a.id)
             
                 successors      = np.array([t.column for t in a.transitions])
@@ -137,6 +163,7 @@ def parse_storm(model, policy, uncertainty_model, norm_bound,
                             distribution(successors, probabilities)
                             
                 else:
+                    
                     # State is nonterminal and distribution is uncertain/robust              
                     M.states_dict[s.id].actions_dict[a.id].robust = True
                     
@@ -148,20 +175,26 @@ def parse_storm(model, policy, uncertainty_model, norm_bound,
                     norm_concat = np.concatenate([probabilities, 1-probabilities])
                     norm_margin = np.min(np.abs(norm_concat))
                     
-                    delta = 1e-6
-    
-                    print('check...')
-                    print('norm_bound', norm_bound)
-                    print('norm_margin', norm_margin)
-    
-                    if norm_bound >= norm_margin - delta:
-                        print(' -- Reduce size of L1 uncertainty set to', norm_margin - delta)
-                    M.parameters[(s.id, a.id)] = cp.Parameter(value = min(norm_margin - delta, norm_bound))
+                    if norm_bound >= norm_margin - DELTA:
+                        print(' -- Reduce size of L1 uncertainty set to', norm_margin - DELTA)
+                    M.parameters[(s.id, a.id)] = cp.Parameter(value = min(norm_margin - DELTA, norm_bound))
+                    
+                    # Keep track of to which state-action pairs each parameter belongs
+                    M.param2stateAction[ M.parameters[(s.id, a.id)] ] = [(s.id, a.id)]
                     
                     A, b = uncertainty_model(probabilities, M.parameters[(s.id, a.id)])
                     
                     M.states_dict[s.id].actions_dict[a.id].model = polytope(A, b)
 
+                    # Keep track of all robust state-action pairs
+                    M.robust_pairs_suc[(s.id, a.id)] = len(successors)
+                    M.robust_successors += len(successors)
+                    
+                    # Put an (arbitrary) ordering over the dual variables
+                    M.states_dict[s.id].actions_dict[a.id].alpha_start_idx = M.robust_constraints
+                    M.robust_constraints += len(b)
+                    
+                    
         # Set action iterator
         M.states_dict[s.id].set_action_iterator()
 
@@ -175,6 +208,7 @@ def parse_storm(model, policy, uncertainty_model, norm_bound,
     
     return M
 
+'''
 def parse_policy(M, policy, verbose = False):
     
     print('Parsing policy...')
@@ -216,3 +250,4 @@ def generate_random_policy(M, verbose = False):
             PI[s.id] = {a: 1/num_actions for a in s.actions}
             
     return PI
+'''

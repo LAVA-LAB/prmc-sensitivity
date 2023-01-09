@@ -1,8 +1,8 @@
 mdp
 
 const double p = 0.4;
-const int N = 6;
-const int M = 6;
+const int N = 10;
+const int M = 10;
 
 module grid
     x : [1..N] init 1;
