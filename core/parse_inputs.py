@@ -45,13 +45,21 @@ def parse_inputs(manualModel=None):
                         help="Validate gradients by an empirical perturbation analysis")
     parser.set_defaults(validate_gradients=False)
     
+    # Switch to enable verbose mode
+    parser.add_argument('--verbose', dest='verbose', action='store_true',
+                        help="Verbose mode")
+    parser.set_defaults(verbose=False)
+    
+    # Discount factor for expected rewards
+    parser.add_argument('--discount', type=float, action="store", dest='discount', 
+                        default=1, help="Discount factor")
+    
+    parser.add_argument('--beta_penalty', type=float, action="store", dest='beta_penalty', 
+                        default=1e-9, help="Penalty on dual variable beta as a tie-break rule")
+    
     # Now, parse the command line arguments and store the
     # values in the `args` variable
     args = parser.parse_args()    
-
-    if args.model == None:
-        print('ERROR: No model specified')
-        assert False
         
     # Interprete some arguments as lists
     if args.terminal_label:

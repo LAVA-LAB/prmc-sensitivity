@@ -7,6 +7,7 @@ Created on Fri Dec 16 13:44:50 2022
 
 import numpy as np
 import cvxpy as cp
+from tabulate import tabulate
 
 class prMDP:
     
@@ -14,6 +15,7 @@ class prMDP:
         
         self.states_dict = {}
         self.parameters = {}
+        self.parameters_max_value = {}
         self.param2stateAction = {}
         
         self.robust_pairs_suc = {}
@@ -24,18 +26,28 @@ class prMDP:
         self.poly_pre_state = {s: set() for s in range(num_states)}
         self.distr_pre_state = {s: set() for s in range(num_states)}
         
+    def __str__(self):
+        
+        items = {
+            'No. states': len(self.states),
+            'No. terminal states': len(self.states_term),
+            'No. parameters': len(self.parameters),
+            'Robust transitions': self.robust_successors,
+            'Robust constraints': self.robust_constraints,
+            'Discount factor': self.discount
+            }
+        
+        print_list = [[k,v] for (k,v) in items.items()]
+        
+        return '\n' + tabulate(print_list, headers=["Property", "Value"]) + '\n'
+        
     def set_state_iterator(self):
         
         self.states = self.states_dict.values()
         
     def set_initial_states(self, sI):
         
-        if type(sI) == int:
-            self.sI = {sI: 1}
-        elif type(sI) == dict:
-            self.sI = sI
-        else:
-            assert False
+        self.sI = {'s': np.array(sI), 'p': np.full(len(sI), 1/len(sI))}
         
     def set_nonterminal_states(self):
         
@@ -86,8 +98,8 @@ class polytope:
         self.A = A
         self.b = b
 
-def parse_storm(model, scheduler, uncertainty_model, norm_bound, 
-                terminal_labels = [], verbose = False):
+def parse_storm(model, args, scheduler, uncertainty_model, init_norm_bound,
+                verbose = False):
 
     print('Parsing PRISM model...')    
 
@@ -96,7 +108,10 @@ def parse_storm(model, scheduler, uncertainty_model, norm_bound,
 
     # Define graph object
     M = prMDP(num_states = len(model.states))
-    M.set_initial_states(int(model.initial_states[0]))
+    M.set_initial_states(model.initial_states)
+    
+    M.discount = args.discount
+    M.beta_penalty = args.beta_penalty
     
     for s in model.states:
         
@@ -106,7 +121,7 @@ def parse_storm(model, scheduler, uncertainty_model, norm_bound,
         
         # If current state has one of the terminal labels, make this state
         # a terminal state
-        if any([label in terminal_labels for label in s.labels]):
+        if any([label in args.terminal_label for label in s.labels]):
             M.states_dict[s.id].terminal = True
             if verbose:
                 print('-- States {} is terminal'.format(s.id))
@@ -172,12 +187,14 @@ def parse_storm(model, scheduler, uncertainty_model, norm_bound,
                         M.poly_pre_state[succ].add((s.id, a.id, dim))
                     
                     # Determine margin between precise distribution and simplex
-                    norm_concat = np.concatenate([probabilities, 1-probabilities])
-                    norm_margin = np.min(np.abs(norm_concat))
+                    norm_concat = np.concatenate([probabilities - DELTA, 1 - probabilities + DELTA])
+                    max_value = np.min(np.abs(norm_concat))
+                    par_value   = min(max_value, init_norm_bound)
                     
-                    if norm_bound >= norm_margin - DELTA:
-                        print(' -- Reduce size of L1 uncertainty set to', norm_margin - DELTA)
-                    M.parameters[(s.id, a.id)] = cp.Parameter(value = min(norm_margin - DELTA, norm_bound))
+                    if init_norm_bound >= max_value:
+                        print(' -- Reduce size of L1 uncertainty set to', max_value)
+                    M.parameters[(s.id, a.id)] = cp.Parameter(value = par_value)
+                    M.parameters_max_value[(s.id, a.id)] = max_value
                     
                     # Keep track of to which state-action pairs each parameter belongs
                     M.param2stateAction[ M.parameters[(s.id, a.id)] ] = [(s.id, a.id)]
@@ -205,6 +222,9 @@ def parse_storm(model, scheduler, uncertainty_model, norm_bound,
     reward_model = next(iter(model.reward_models.values()))
     M.set_reward_models(reward_model)
     M.set_nonterminal_states()
+    
+    # Give an index to every parameter
+    M.par_idx2tuple = list(M.parameters.keys())
     
     return M
 

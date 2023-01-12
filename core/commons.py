@@ -77,3 +77,9 @@ valuate = np.vectorize(lambda x: x.val() if isinstance(x, poly) else x,
 
 deriv_valuate = np.vectorize(lambda x,y: x.deriv_eval(y) if isinstance(x, poly) else 0, 
                      otypes=[float])
+
+
+
+def rrange(start, length):
+    
+    return np.arange(start, start+length)

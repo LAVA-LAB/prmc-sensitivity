@@ -54,7 +54,7 @@ class poly(object):
         
             coeff_der = np.polynomial.polynomial.polyder(self.coeff)
     
-            return cp.sum([c * self.par ** i for i,c in enumerate(coeff_der)]).value
+            return sum([c * self.par.value ** i for i,c in enumerate(coeff_der)])
     
         # If the IDs don't match, then the derivative is zero by default
         else:

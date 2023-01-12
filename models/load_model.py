@@ -2,14 +2,14 @@ import stormpy
 import stormpy.examples
 import stormpy.examples.files
 
-def load_prism_model(path, formula=None):
+def load_prism_model(path, formula=None, policy = 'optimal'):
     
     print('Load PRISM model with STORM...')
     
     program = stormpy.parse_prism_program(path)
     model = stormpy.build_model(program)
 
-    if model.is_nondeterministic_model and not formula is None:
+    if model.is_nondeterministic_model and not formula is None and policy == 'optimal':
         
         formulas = stormpy.parse_properties(formula, program)
         
