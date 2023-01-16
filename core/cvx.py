@@ -36,8 +36,6 @@ class cvx_verification:
         self.cns = {}
         r   = {}
         
-        self.RHS = {}
-        
         if verbose:
             print('- Define constraints...')
         
@@ -52,7 +50,7 @@ class cvx_verification:
                 print('Error: could not parse reward model; abort...')
                 sys.exit()
             
-            self.RHS[s.id] = 0
+            RHS = 0
             
             # If not a terminal state
             if s.terminal:
@@ -79,7 +77,7 @@ class cvx_verification:
                             bXalpha = [b.val()*alph if isinstance(b, poly) else b*alph
                                        for b,alph in zip(a.model.b, self.alpha[(s.id, a.id)])]
                         
-                        self.RHS[s.id] -= s.policy[a.id] * (cp.sum(bXalpha) + self.beta[(s.id, a.id)])
+                        RHS -= s.policy[a.id] * (cp.sum(bXalpha) + self.beta[(s.id, a.id)])
                         
                         # Add constraints on dual variables for each state-action pair
                         self.cns[(s.id, a.id)] = \
@@ -92,9 +90,9 @@ class cvx_verification:
                     else:
                         
                         # Add constraints for a precise probability distribution
-                        self.RHS[s.id] += s.policy[a.id] * (self.x[a.model.states] @ a.model.probabilities)
+                        RHS += s.policy[a.id] * (self.x[a.model.states] @ a.model.probabilities)
                       
-                self.cns[s.id] = self.x[s.id] == r[s] + M.discount * self.RHS[s.id]
+                self.cns[s.id] = self.x[s.id] == r[s] + M.discount * RHS
             
         self.prob = cp.Problem(objective = objective, constraints = self.cns.values())
         
@@ -145,7 +143,7 @@ class cvx_verification:
         
     def check_complementary_slackness(self):
         
-        print('\nCheck complementary slackness...')
+        print('Check complementary slackness...')
         
         # Slack of 1 means lambda is nonzero; Slack of -1 means alpha is nonzero
         self.keeplambda = [[]] * len(self.alpha)
@@ -154,10 +152,14 @@ class cvx_verification:
         # Check if assumption is satisfied
         for i,(s,a) in enumerate(self.alpha.keys()):
             if ('ineq', s, a) in self.cns:
+                
+                # If both lambda and alpha are zero (anywhere), complementary
+                # slackness is violated
                 lambda_zero = np.abs(self.cns[('ineq', s, a)].dual_value) < 1e-12
                 alpha_zero  = np.abs(self.alpha[(s, a)].value) < 1e-12
                 slacksum = np.sum([lambda_zero, alpha_zero], axis=0)
                 
+                # If the sum is 2 anywhere, than throw an error
                 if np.any(slacksum == 2):
                     print('\nERROR: lambda[i] > 0 XOR alpha[i] > 0 must be true for each i')
                     print('This assumption was not met for state {} and action {}'.format(s,a))
@@ -165,10 +167,12 @@ class cvx_verification:
                     print('- Alpha is {}'.format(self.alpha[(s,a)].value))
                     print('- Beta is {}'.format(self.beta[(s,a)].value))
                     print('Abort...')
-                    # sys.exit()
+                    sys.exit()
                     
                 self.keepalpha[i] = lambda_zero
                 self.keeplambda[i] = alpha_zero
         
         self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]
         self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
+        
+        print('\n')

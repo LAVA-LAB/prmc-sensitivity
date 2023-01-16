@@ -22,6 +22,10 @@ def parse_inputs(manualModel=None):
     parser.add_argument('--model', type=str, action="store", dest='model', 
                         default=manualModel, help="Path to PRISM model")
     
+    # Path to parameter valuation file to load
+    parser.add_argument('--parameters', type=str, action="store", dest='parameters', 
+                        default=False, help="Path to parameter valuation file")
+    
     # Temporal logic formula
     parser.add_argument('--formula', type=str, action="store", dest='formula', 
                         default=None, help="Formula to verify")

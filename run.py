@@ -2,12 +2,10 @@
 
 from core.cvx import cvx_verification
 from core.parse_inputs import parse_inputs
+from models.prmdp import parse_prmdp
+from models.pmdp import parse_pmdp
 
-from models.load_model import load_prism_model
-from models.parse_model import parse_storm
-from models.uncertainty_models import L0_polytope, L1_polytope
-
-from core.sensitivity import gradients_spsolve
+from core.sensitivity import gradient
 
 import numpy as np
 import os
@@ -36,29 +34,47 @@ current_time = datetime.now().strftime("%H:%M:%S")
 print('Program started at {}'.format(current_time))
 print('\n',tabulate(vars(args).items(), headers=["Argument", "Value"]),'\n')
 
-model, policy = load_prism_model(path = str(Path(root_dir, args.model)), 
-                                 formula = args.formula,
-                                 policy = 'random')
-
-# Set uncertainty model and its size
-if args.uncertainty_model == 'L0':
-    uncertainty_model = L0_polytope
-else:
-    uncertainty_model = L1_polytope
-L1_size = args.uncertainty_size
-
-# Parse model and policy
-M = parse_storm(model, args, policy, uncertainty_model, L1_size)
+M = parse_prmdp(path = str(Path(root_dir, args.model)),
+               formula = args.formula,
+               policy = 'random',
+               args = args)
 print(M)
 
+# Create object for computing gradients
+G = gradient(M)
+
+
 # Verify loaded model by solving the optimization program
-CVX = cvx_verification(M, verbose=True)
+CVX = cvx_verification(M, verbose=True, pars_as_expressions=False)
 CVX.solve(solver = args.solver, store_initial = True, verbose=True)
 print('Optimal solution:', CVX.prob.value)
+
+# Check if complementary slackness is satisfied
+CVX.check_complementary_slackness()
+
+# Update gradient object with current solution
+G.update(M, CVX, mode='remove_dual')
+
+gradients1, time = G.solve_eqsys()
+
+M.pars_at_max = np.array([True if v.value >= M.parameters_max_value[(s,a)] else False for (s,a),v in M.parameters.items()])
+
+k=10
+print('Determine {} most important parameters...'.format(k))
+K, y, v, time = G.solve_cvx(M, k, solver='GUROBI')
+print('Parameter importance LP solved in {} seconds'.format(time))
+
+# gradients2, time3 = G.solve_inversion(CVX)
+# print('Via matrix inversion took', time3)
+
+# print(time1,time2,time3)
 
 assert False
 
 # %%
+
+
+
 
 done = False
 
@@ -79,7 +95,7 @@ while not done:
     
     ######
     
-    GRAD = gradients_spsolve(M, CVX)
+    
     
     # Increment robustness/uncertainty in k least sensitive parameters
     iSub = np.arange(len(M.parameters))[~PARS_AT_MAX]
