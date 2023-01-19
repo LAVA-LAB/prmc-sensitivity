@@ -13,6 +13,7 @@ from pathlib import Path
 from tqdm import tqdm
 from tabulate import tabulate
 from datetime import datetime
+from gurobipy import GRB
 
 from core.commons import tocDiff
 
@@ -22,11 +23,17 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 # Parse arguments
 args = parse_inputs()
 
-SWITCH = 3
+SWITCH = 0
 
-if SWITCH == 1:
+if SWITCH == 0:
+    args.model = 'models/PMC/slipgrid_fixed/slipgrid_fixed.nm'
+    args.formula = 'R=? [F "goal"]'
+    args.parameters = 'models/PMC/slipgrid_fixed/slipgrid_fixed_mle.json'
+
+elif SWITCH == 1:
     args.model = 'models/pdtmc/parametric_die.pm'
     args.formula = 'P=? [F s=7 & d=2]'
+    args.parameters = 'models/pdtmc/parametric_die.json'
 
 elif SWITCH == 2:
     args.model = 'models/POMDP/maze/maze_simple_extended_m5.drn'
@@ -35,26 +42,48 @@ elif SWITCH == 2:
 elif SWITCH == 3:
     args.model = 'models/PMC/brp/brp_512_5.pm'
     args.formula = 'P=? [ F s=5 ]'
-    args.parameters ='models/PMC/brp/brp.json'
+    args.parameters = 'models/PMC/brp/brp.json'
     
 elif SWITCH == 4:
     args.model = 'models/POMDP/drone/pomdp_drone_4-2-mem1-simple.drn'
     args.formula = 'P=? ["notbad" U "goal"]'
     
 elif SWITCH == 5:
+    args.model = 'models/satellite/pomdp_satellite_36_sat_5_act_0_65_dist_5_mem_06_sparse_full.drn'
+    args.formula = 'P=? [F "goal"]'
+    
+elif SWITCH == 6:
     args.model = 'models/satellite/pomdp_prob_36_sat_065_dist_1_obs_diff_orb_len_40.drn'
     args.formula = 'P=? [F "goal"]'
+    args.default_valuation = 0.2
 
 current_time = datetime.now().strftime("%H:%M:%S")
 print('Program started at {}'.format(current_time))
 print('\n',tabulate(vars(args).items(), headers=["Argument", "Value"]),'\n')
 
-model, terminal_states, instantiated_model, parameters, point, result, params2states = parse_pmdp(
+model, properties, terminal_states, instantiated_model, parameters, valuation, point, result, params2states = parse_pmdp(
     path = str(Path(root_dir, args.model)),
     formula = args.formula,
     args = args,
-    param_path = str(Path(root_dir, args.parameters)))
+    param_path = str(Path(root_dir, args.parameters)) if args.parameters else False)
 print(model)
+
+# Retrieve model checking solution
+sol = np.array(result.get_values())
+
+# Define initial state
+sI = {'s': np.array(model.initial_states), 
+      'p': np.full(len(model.initial_states), 1/len(model.initial_states))}
+
+print('Range of solutions: [{}, {}]'.format(np.min(sol), np.max(sol)))
+print('Solution in initial state: {}\n'.format(sol[sI['s']] @ sI['p']))
+
+# Get only terminal states, and save mapping from this list to absolute state indices
+# nonterm_states      = [True if i not in terminal_states else False for i in np.arange(model.nr_states)]
+# new_old_state_map   = {j: i for j,i in enumerate([i for i in np.arange(model.nr_states) if i not in terminal_states])}
+# old_new_state_map   = inv_map = {v: k for k, v in new_old_state_map.items()}
+
+
 
 import scipy.sparse as sparse
 
@@ -67,42 +96,34 @@ print('Start defining J...')
 subpoint = {}
 
 for state in model.states:
-        for action in state.actions:
-            for transition in action.transitions:
-                
-                ID = (state.id, action.id, transition.column)
-                
-                # Gather variables related to this transition
-                var = transition.value().gather_variables()
-                
-                # Get valuation for only those parameters
-                subpoint[ID] = {v: point[v] for v in var}
-                
-                if state.id not in terminal_states:
-                
-                    value = float(transition.value().evaluate(subpoint[ID]))
-                    if value != 0:
-                
-                        # Add to sparse matrix
-                        row += [state.id]
-                        col += [transition.column]
-                        val += [value]
+    for action in state.actions:
+        for transition in action.transitions:
+            
+            ID = (state.id, action.id, transition.column)
+            
+            # Gather variables related to this transition
+            var = transition.value().gather_variables()
+            
+            # Get valuation for only those parameters
+            subpoint[ID] = {v: point[v] for v in var}
+            
+            if state.id not in terminal_states:
+            
+                value = float(transition.value().evaluate(subpoint[ID]))
+                if value != 0:
+            
+                    # Add to sparse matrix
+                    row += [state.id]
+                    col += [transition.column]
+                    val += [value]
       
 J = sparse.identity(len(model.states)) - sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(model.states)))  
       
 print('Start defining Ju...')
 
-tocDiff()
-
-Ju = {}
-
-
-
 row = []
 col = []
 val = []
-
-sol = result.get_values()
 
 for q,p in enumerate(parameters):
     
@@ -110,7 +131,6 @@ for q,p in enumerate(parameters):
         print('#{}, parameter: {}'.format(q,p))
     
     for state in params2states[p]:
-    # for state in model.states:
         
         # If the value in this state is zero, we can skip it anyways
         if sol[state.id] != 0:        
@@ -129,73 +149,70 @@ for q,p in enumerate(parameters):
                     row += [state.id]
                     col += [q]
                     val += [cur_val]
-                        
                 
-                
-    # Ju[q] = sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(model.states))) @ sparse_result
-   
 tocDiff()
              
 # JU = -np.column_stack([g for g in Ju.values()])
-JU = -sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(parameters)))
-
-
-
-
-# for q,p in enumerate(parameters):
-    
-#     if q % 100 == 0:
-#         print('#{}, parameter: {}'.format(q,p))
-    
-#     row = []
-#     col = []
-#     val = []
-    
-#     for state in params2states[p]:
-#     # for state in model.states:
-        
-#         for action in state.actions:
-#             for transition in action.transitions:
-                
-#                 ID = (state.id, action.id, transition.column)
-                
-#                 value = float(transition.value().derive(p).evaluate(subpoint[ID]))
-                
-#                 if value != 0:
-#                     row += [state.id]
-#                     col += [transition.column]
-#                     val += [value]
-                
-#     Ju[q] = sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(model.states))) @ result.get_values()
-   
-# tocDiff()
-             
-# JU = -np.column_stack([g for g in Ju.values()])
-
-
-
-
-
-
+Ju = -sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(parameters)))
 
 from core.sensitivity import solve_cvx, solve_cvx_gurobi
 
 print('Start solving...')
 
-sI = {'s': np.array([0]), 
-      'p': np.array([1])}
-
-# K, v, time = solve_cvx(J, JU, sI, 1, solver='GUROBI', verbose=True)
+# K, v, time = solve_cvx(J, Ju, sI, 1, solver='GUROBI', direction=cp.maximize, verbose=True)
 # print('Parameter ID: {}; Gradient: {}; Solver time: {}'.format(K,v,time))
 # print('Chosen parameter is:', parameters[K])
 
-K, v, time = solve_cvx_gurobi(J, JU, sI, 1)
+K, v, time = solve_cvx_gurobi(J, Ju, sI, 1, direction=GRB.MAXIMIZE, verbose=True)
 print('Parameter ID: {}; Gradient: {}; Solver time: {}'.format(K,v,time))
 print('Chosen parameter is:', parameters[K])
 
+
+#####
+
+# %%
+# Empirical validation of gradients
+
+from models.pmdp import instantiate_pmdp
+import stormpy
+import pandas as pd
+
+delta = 1e-8
+sol_old = sol[sI['s']] @ sI['p']
+
+gradient_validate = {}
+for q,x in enumerate(parameters[K]):
+    
+    valuation[x.name] += delta
+    
+    # Instantiate parameters
+    instantiated_model, params2states, point = instantiate_pmdp(parameters, valuation, model)
+    
+    # Compute model checking result
+    result_delta = stormpy.model_checking(instantiated_model, properties[0])
+    result_array = np.array(result_delta.get_values())
+    sol_new = result_array[sI['s']] @ sI['p']
+    grad = (sol_new-sol_old) / delta
+    gradient_validate[x.name] = grad
+    
+    if q % 100 == 0:
+        print('Validated #{}, parameter: {}, gradient: {}'.format(q,x,grad))
+    
+    valuation[x.name] -= delta
+
+PD_gradient = pd.Series(gradient_validate)
+
+inf = PD_gradient.min()
+inf_par = PD_gradient.idxmin()
+sup = PD_gradient.max()
+sup_par = PD_gradient.idxmax()
+
+print('Minimum gradient: {} for parameter {}'.format(inf, inf_par))
+print('Maximum gradient: {} for parameter {}'.format(sup, sup_par))
+
 assert False
 
-
+# %%
 
 
 

@@ -61,6 +61,9 @@ def parse_inputs(manualModel=None):
     parser.add_argument('--beta_penalty', type=float, action="store", dest='beta_penalty', 
                         default=1e-9, help="Penalty on dual variable beta as a tie-break rule")
     
+    parser.add_argument('--default_valuation', type=float, action="store", dest='default_valuation', 
+                        default=0.5, help="Default parameter valuation")
+    
     # Now, parse the command line arguments and store the
     # values in the `args` variable
     args = parser.parse_args()    

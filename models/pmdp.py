@@ -6,9 +6,7 @@ Created on Fri Dec 16 13:44:50 2022
 """
 
 import numpy as np
-import cvxpy as cp
 import json
-from tabulate import tabulate
 
 import stormpy
 import stormpy.core
@@ -16,7 +14,22 @@ import stormpy.examples
 import stormpy.examples.files
 import stormpy._config as config
 
-from models.uncertainty_models import L0_polytope, L1_polytope
+def instantiate_pmdp(parameters, valuation, model):
+    
+    instantiator = stormpy.pars.PDtmcInstantiator(model)
+    point = dict()
+    
+    params2states = {}
+    
+    for x in parameters:
+
+        point[x] = stormpy.RationalRF(float(valuation[x.name]))
+            
+        params2states[x] = set({})
+        
+    instantiated_model = instantiator.instantiate(point)
+    
+    return instantiated_model, params2states, point
 
 def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verbose = False):
 
@@ -52,87 +65,51 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
     parameters = model.collect_probability_parameters()
     print("- Number of parameters: {}".format(len(parameters)))
     
-    instantiator = stormpy.pars.PDtmcInstantiator(model)
-    point = dict()
-    
-    params2states = {}
-    
     # Load parameter valuation
-    
     if param_path:
         with open(param_path) as json_file:
             valuation = json.load(json_file)
+    else:
+        valuation = {}
+        
+        for x in parameters:
+            valuation[x.name] = args.default_valuation
     
-    default_valuation = 0.5
+    print("- Instantiate model...")
     
     # Instantiate parameters
-    for x in parameters:
-
-        if param_path and x.name in valuation:
-            point[x] = stormpy.RationalRF(float(valuation[x.name]))
-        else:
-            point[x] = stormpy.RationalRF(default_valuation)
-            
-        params2states[x] = set({})
-        
-    instantiated_model = instantiator.instantiate(point)
+    instantiated_model, params2states, point = instantiate_pmdp(parameters, valuation, model)
     
-    for state in model.states:
+    print("- Model checking...")
+    
+    # Compute model checking result
+    result = stormpy.model_checking(instantiated_model, properties[0])
+    
+    print("- Iterate once over all transitions...")
+    
+    # Store which parameters are related to which states
+    for i,state in enumerate(model.states):
+        if i % 10000 == 0:
+            print('-- Check state {}'.format(i))
+        
         for action in state.actions:
             for transition in action.transitions:
                 
                 params = transition.value().gather_variables()
                 
+                '''
+                # Gather variables related to this transition
+                var = transition.value().gather_variables()
+                
+                # Get valuation for only those parameters
+                subpoint = {v: point[v] for v in var}
+                
+                p = transition.value().evaluate(subpoint)
+                if p > 1 or p < 0:
+                    print('-- WARNING: transition probability for ({},{},{}) is {}'.format(state.id, action.id, transition.column, p))
+                '''
+                
                 for x in params:
                     params2states[x].add(state)
-            
     
-    # Compute model checking result
-    result = stormpy.model_checking(instantiated_model, properties[0])
-    print(result)
-    
-    return model, terminal_states, instantiated_model, np.array(list(parameters)), point, result, params2states
-
-'''
-def parse_policy(M, policy, verbose = False):
-    
-    print('Parsing policy...')
-    
-    # Policy is None means that the model is not nondeterministic
-    if policy is None:
-        nondet = False
-    else:
-        nondet = True
-      
-    PI = {}  
-      
-    # Iterate over all state-action pairs
-    for s in M.states:
-        if s.id not in M.states_term:
-            if verbose:
-                print('- Parse policy for state {}'.format(s.id))
-            
-            # If the model is not nondeterministic, choose action zero
-            if not nondet:
-                PI[s.id] = {s.actions_dict[0]: 1}
-                
-            # Otherwise, follow provided policy
-            else:
-                choice = policy.get_choice(s.id)
-                action = choice.get_deterministic_choice()
-                
-                PI[s.id] = {s.actions_dict[action]: 1}
-    
-    return PI
-
-def generate_random_policy(M, verbose = False):
-    
-    PI = {}
-    
-    for s in M.states:
-        if s.id not in M.states_term:
-            num_actions = len(s.actions)
-            PI[s.id] = {a: 1/num_actions for a in s.actions}
-            
-    return PI
-'''
+    return model, properties, terminal_states, instantiated_model, np.array(list(parameters)), valuation, point, result, params2states

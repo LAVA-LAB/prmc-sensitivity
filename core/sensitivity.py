@@ -17,6 +17,9 @@ from core.commons import tocDiff
 from core.commons import unit_vector, valuate, deriv_valuate
 from core.commons import rrange
 
+import gurobipy as gp
+from gurobipy import GRB
+
 class gradient:
 
     def __init__(self, M, verbose = False):
@@ -154,28 +157,7 @@ class gradient:
         
         if mode == 'remove_dual':
             self.Ju = self.Ju[-self.J.shape[0]:, :]
-        
-    def solve_eqsys(self):
-        '''
-        Compute the Jacobian of the solution in each state with respect to the
-        parameter instantiation. The (sparse) Jacobian has |S| rows and |V| 
-        columns, with S the set of states and V the set of parameters.
-
-        Returns
-        -------
-        time : float
-            Solver run time.
-
-        '''
-    
-        print('Compute gradients via linear equation system...')
-        
-        tocDiff(False)
-        gradients = spsolve_umf(self.J, -self.Ju)[:self.num_states, :]
-        time = tocDiff(False)
-        
-        return gradients, time
-    
+       
     def solve_inversion(self, CVX):
         
         print('Compute gradients via matrix inversion...')
@@ -195,10 +177,33 @@ class gradient:
         time = tocDiff(False)
         
         return gradients, time
+       
+        
+       
+def solve_eqsys(J, Ju):
+    '''
+    Compute the Jacobian of the solution in each state with respect to the
+    parameter instantiation. The (sparse) Jacobian has |S| rows and |V| 
+    columns, with S the set of states and V the set of parameters.
+
+    Returns
+    -------
+    time : float
+        Solver run time.
+
+    '''
+
+    print('Compute gradients via linear equation system...')
+    
+    tocDiff(False)
+    gradients = spsolve_umf(J, -Ju)
+    time = tocDiff(False)
+    
+    return gradients, time
 
 
 
-def solve_cvx(J, Ju, sI, k, solver = 'SCS', verbose = False):
+def solve_cvx(J, Ju, sI, k, direction = cp.Maximize, solver = 'SCS', verbose = False):
     '''
     Determine 'k' parameters with highest derivative in the initial state
 
@@ -228,7 +233,7 @@ def solve_cvx(J, Ju, sI, k, solver = 'SCS', verbose = False):
         
     cvx['y'] = cp.Variable(Ju.shape[1], nonneg=True)
     
-    cvx['obj'] = cp.Maximize(cvx['x'][ sI['s']] @ sI['p'])
+    cvx['obj'] = direction(cvx['x'][ sI['s']] @ sI['p'])
     
     cvx['cns'] = [J @ cvx['x'] == -Ju @ cvx['y'],
                   cp.sum(cvx['y']) == k]
@@ -264,9 +269,14 @@ def solve_cvx(J, Ju, sI, k, solver = 'SCS', verbose = False):
     # K   = M.param_index[~M.pars_at_max][ind_sort]
     # Y   = y[ind_sort]
     
+    print('')
+    
     return K, v, time
 
-def solve_cvx_gurobi(J, Ju, sI, k, verbose = True):
+
+
+def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
+                     slackvar = False):
     '''
     Determine 'k' parameters with highest derivative in the initial state
 
@@ -285,9 +295,6 @@ def solve_cvx_gurobi(J, Ju, sI, k, verbose = True):
 
     '''
     
-    import gurobipy as gp
-    from gurobipy import GRB
-    
     print('Compute parameter importance via LP (GurobiPy)...')
     
     tocDiff(False)
@@ -297,33 +304,50 @@ def solve_cvx_gurobi(J, Ju, sI, k, verbose = True):
         m.Params.OutputFlag = 1
     else:
         m.Params.OutputFlag = 0
-        
-    # m.Params.Method = 1
-    m.Params.NumericFocus = 3
-    m.Params.ScaleFlag = 2
-        
-    x = m.addMVar(J.shape[1])
-    y = m.addMVar(Ju.shape[1], lb=0, ub=1)
-    slack = m.addMVar(J.shape[0])
     
-    m.addConstr(J @ x == slack - Ju @ y)
-    m.addConstr(gp.quicksum(y) == k)
+    m.Params.Method = 2
+    # m.Params.SimplexPricing = 3
+    m.Params.NumericFocus = 3
+    m.Params.ScaleFlag = 1
+    m.Params.Presolve = 1
+    
+    # m.Params.Crossover = 0
+    
+    x = m.addMVar(J.shape[1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
+    y = m.addMVar(Ju.shape[1], lb=0, ub=GRB.INFINITY)
+    
+    # Switch between adding a (quadratically-penalized) slack variable
+    if slackvar:
+        slack = m.addMVar(J.shape[0], lb=-0.1, ub=0.1)
+        
+        # m.tune()
+        F = 1e9
+        if direction is GRB.MAXIMIZE:
+            penalty = -F * (slack @ slack)
+        else:
+            penalty = F * (slack @ slack)
+    
+    else:
+        slack       = 0
+        penalty     = 0
+        
+    m.addConstr(J @ x == -Ju @ y + slack)
+    m.addConstr(gp.quicksum(y) == k)    
+    
+    m.setObjective(x[ sI['s']] @ sI['p'] + penalty, direction)
     
     # m.tune()
-    m.setObjective(x[ sI['s']] @ sI['p'] - 1e9*gp.quicksum(slack * slack), GRB.MAXIMIZE)
-    
-    print('- Call GUROBI')
     m.optimize()
-    print('- Maximum slack is: {}'.format(np.max(np.abs(slack.X))))
+    
+    if slackvar:
+        print('Maximal slack value is {}'.format(np.max(np.abs(slack.X))))
     
     time = tocDiff(False)
     
     # Get the indices of the k parameters showing maximimum derivatives
     K = np.argpartition(y.X, -k)[-k:]
     
-    # # Absolute indices of the k chosen parameters
-    # K   = M.param_index[~M.pars_at_max][ind_sort]
-    # Y   = y[ind_sort]
+    print('')
     
     return K, m.ObjVal, time
 
