@@ -5,6 +5,8 @@ Created on Fri Dec 16 13:44:50 2022
 @author: Thom Badings
 """
 
+from core.commons import tocDiff
+
 import numpy as np
 import json
 
@@ -16,7 +18,11 @@ import stormpy._config as config
 
 def instantiate_pmdp(parameters, valuation, model):
     
-    instantiator = stormpy.pars.PDtmcInstantiator(model)
+    if model.model_type.name == 'MDP':
+        instantiator = stormpy.pars.PMdpInstantiator(model)
+    else:
+        instantiator = stormpy.pars.PDtmcInstantiator(model)
+        
     point = dict()
     
     params2states = {}
@@ -42,6 +48,9 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
     
     import stormpy.pars
     
+    print('- Parse model...')
+    tocDiff(False)
+    
     try:
         program = stormpy.parse_prism_program(path)
         properties = stormpy.parse_properties(formula, program)
@@ -49,6 +58,9 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
     except:
         properties = stormpy.parse_properties(formula)
         model = stormpy.build_parametric_model_from_drn(path)
+    
+    print('-- Model parsed in {} seconds'.format(tocDiff(False)))
+    print('- Loop once over state space...')
     
     terminal_states = []
     

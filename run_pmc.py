@@ -23,39 +23,40 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 # Parse arguments
 args = parse_inputs()
 
-SWITCH = 0
+# SWITCH = 0
 
-if SWITCH == 0:
-    args.model = 'models/PMC/slipgrid_fixed/slipgrid_fixed.nm'
-    args.formula = 'R=? [F "goal"]'
-    args.parameters = 'models/PMC/slipgrid_fixed/slipgrid_fixed_mle.json'
+# if SWITCH == 0:
+#     # args.model = 'models/PMC/slipgrid_fixed/slipgrid_fixed.nm'
+#     args.model   = 'models/slipgrid/input/pmc_size=80_params=5000_seed=0.nm'
+#     args.formula = 'R=? [F "goal"]'
+#     args.parameters = 'models/slipgrid/input/pmc_size=80_params=5000_seed=0.json'
 
-elif SWITCH == 1:
-    args.model = 'models/pdtmc/parametric_die.pm'
-    args.formula = 'P=? [F s=7 & d=2]'
-    args.parameters = 'models/pdtmc/parametric_die.json'
+# elif SWITCH == 1:
+#     args.model = 'models/pdtmc/parametric_die.pm'
+#     args.formula = 'P=? [F s=7 & d=2]'
+#     args.parameters = 'models/pdtmc/parametric_die.json'
 
-elif SWITCH == 2:
-    args.model = 'models/POMDP/maze/maze_simple_extended_m5.drn'
-    args.formula = 'R=? [F "goal"]'
+# elif SWITCH == 2:
+#     args.model = 'models/POMDP/maze/maze_simple_extended_m5.drn'
+#     args.formula = 'R=? [F "goal"]'
 
-elif SWITCH == 3:
-    args.model = 'models/PMC/brp/brp_512_5.pm'
-    args.formula = 'P=? [ F s=5 ]'
-    args.parameters = 'models/PMC/brp/brp.json'
+# elif SWITCH == 3:
+#     args.model = 'models/PMC/brp/brp_512_5.pm'
+#     args.formula = 'P=? [ F s=5 ]'
+#     args.parameters = 'models/PMC/brp/brp.json'
     
-elif SWITCH == 4:
-    args.model = 'models/POMDP/drone/pomdp_drone_4-2-mem1-simple.drn'
-    args.formula = 'P=? ["notbad" U "goal"]'
+# elif SWITCH == 4:
+#     args.model = 'models/POMDP/drone/pomdp_drone_4-2-mem1-simple.drn'
+#     args.formula = 'P=? ["notbad" U "goal"]'
     
-elif SWITCH == 5:
-    args.model = 'models/satellite/pomdp_satellite_36_sat_5_act_0_65_dist_5_mem_06_sparse_full.drn'
-    args.formula = 'P=? [F "goal"]'
+# elif SWITCH == 5:
+#     args.model = 'models/satellite/pomdp_satellite_36_sat_5_act_0_65_dist_5_mem_06_sparse_full.drn'
+#     args.formula = 'P=? [F "goal"]'
     
-elif SWITCH == 6:
-    args.model = 'models/satellite/pomdp_prob_36_sat_065_dist_1_obs_diff_orb_len_40.drn'
-    args.formula = 'P=? [F "goal"]'
-    args.default_valuation = 0.2
+# elif SWITCH == 6:
+#     args.model = 'models/satellite/pomdp_prob_36_sat_065_dist_1_obs_diff_orb_len_40.drn'
+#     args.formula = 'P=? [F "goal"]'
+#     args.default_valuation = 0.2
 
 current_time = datetime.now().strftime("%H:%M:%S")
 print('Program started at {}'.format(current_time))
