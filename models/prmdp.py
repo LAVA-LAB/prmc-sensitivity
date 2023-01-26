@@ -10,8 +10,6 @@ import cvxpy as cp
 from tabulate import tabulate
 
 import stormpy
-import stormpy.examples
-import stormpy.examples.files
 
 from models.uncertainty_models import L0_polytope, L1_polytope
 

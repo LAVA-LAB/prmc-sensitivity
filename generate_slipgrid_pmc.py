@@ -4,6 +4,7 @@ import numpy as np
 import json
 import stormpy
 import os
+import math
 from pathlib import Path
 
 # Load PRISM model with STORM
@@ -112,7 +113,7 @@ def gen_pMC(N, slipping_probabilities, policy_before, policy_after,
     
     
     
-def gen_pMDP(N, slipping_probabilities, terrain, model_name,
+def gen_pMDP(N, terrain, model_name,
              loc_package, loc_warehouse):
     
     '''
@@ -129,11 +130,6 @@ def gen_pMDP(N, slipping_probabilities, terrain, model_name,
            'west':  (0, -1),
            'north':  (-1, 0)
             }
-    
-    slipping_estimates = {}
-    for v,p in slipping_probabilities.items():
-        
-        slipping_estimates[v] = np.random.binomial(N, p) / N
     
     Q = ['mdp\n']
     
@@ -192,18 +188,12 @@ def gen_pMDP(N, slipping_probabilities, terrain, model_name,
     with open(r'{}.nm'.format(model_name), 'w') as fp:
         fp.write('\n'.join(Q))
         
-    with open(r'{}.json'.format(model_name), 'w') as fp:
-        json.dump(slipping_probabilities, fp)
-        
-    with open(r'{}_mle.json'.format(model_name), 'w') as fp:
-        json.dump(slipping_estimates, fp)
-        
     print('Exported model with name "{}"'.format(model_name))
     
     
     
-def gen_pMDP_random(N, slipping_probabilities, terrain, model_name,
-                   loc_package, loc_warehouse):
+def gen_pMDP_random(N, terrain, model_name,
+                   loc_package, loc_warehouse, reward):
     
     '''
     Generates a parametric DTMC for the grid world example of arbitrary size,
@@ -220,15 +210,6 @@ def gen_pMDP_random(N, slipping_probabilities, terrain, model_name,
            'west':  (0, -1),
            'north':  (-1, 0)
             }
-    
-    # Minimum transition probability estimate
-    delta = 1e-4
-    
-    # Obtain point estimates for each of the transition probabilities
-    slipping_estimates = {}
-    for v,p in slipping_probabilities.items():
-        
-        slipping_estimates[v] = max(min(np.random.binomial(N, p) / N, 1-delta), delta)
     
     Q = ['dtmc\n']
     
@@ -292,26 +273,19 @@ def gen_pMDP_random(N, slipping_probabilities, terrain, model_name,
     Q += ['endmodule\n',
           '// reward structure (number of steps to reach the target)',
           'rewards',
-          '    [step] true : 1;',
+          '    [step] true : {};'.format(reward),
           'endrewards\n',
           'label "goal" = x={} & y={} & z=1;'.format(loc_warehouse[0], loc_warehouse[1])
           ]
     
     prism_path = str(Path(ROOT_DIR, str(model_name)+'.nm'))
-    json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
     drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
     
     # Export to PRISM file
     with open(r'{}'.format(prism_path), 'w') as fp:
         fp.write('\n'.join(Q))
         
-    with open(r'{}.json'.format(model_name), 'w') as fp:
-        json.dump(slipping_probabilities, fp)
-        
-    with open(r'{}_mle.json'.format(model_name), 'w') as fp:
-        json.dump(slipping_estimates, fp)
-        
-    print('Exported model with name "{}"'.format(model_name))
+    print('Exported PRISM model with name "{}"'.format(model_name))
     
     # Convert from PRISM to DRN file
     formula = 'Rmin=? [F \"goal\"]'
@@ -384,12 +358,12 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 ##########################################
 # Generate other, random slipgrids
 
-no_params = [50, 100, 500, 1000, 5000, 10000]
-grid_size = [5,10,20,40,80,160] #, 160, 320]
+grid_size = [50,100,200,400]
+no_params = [1000,10000,100000]
 p_range = [0.01, 0.02]
 
 # Number of parameters to estimate probabilities with
-N = 100
+N = 1000
 
 ITERS = 1
 
@@ -397,12 +371,14 @@ BASH_FILE = ["#!/bin/bash",
              "cd ..;",
              'echo -e "START GRID WORLD EXPERIMENTS...";']
 
-for V in no_params:
-  for Z in grid_size:
+for Z in grid_size:
+  for V in no_params:
     for seed in range(ITERS):
                 
         np.random.seed(0)
                 
+        model_name = "models/slipgrid/pmc_size={}_params={}_seed={}".format(Z,V,seed)
+        
         # By default, put package in top right corner and warehouse in bottom left
         loc_package   = (Z-2, 1)
         loc_warehouse = (1, Z-2)
@@ -419,17 +395,35 @@ for V in no_params:
             'v'+str(i): np.random.uniform(p_range[0], p_range[1]) for i in range(V)
             }
         
-        # model_name = "models/slipgrid/input/pmdp_size={}_params={}".format(Z,V)
+        # Minimum transition probability estimate
+        delta = 1e-4
         
-        # gen_pMDP(N, slipping_probabilities, terrain, model_name,
+        # Obtain point estimates for each of the transition probabilities
+        slipping_estimates = {}
+        for v,p in slipping_probabilities.items():
+            
+            slipping_estimates[v] = max(min(np.random.binomial(N, p) / N, 1-delta), delta)
+           
+        json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
+        with open(r'{}.json'.format(model_name), 'w') as fp:
+            json.dump(slipping_probabilities, fp)
+            
+        with open(r'{}_mle.json'.format(model_name), 'w') as fp:
+            json.dump(slipping_estimates, fp)
+        
+        # model_name = "models/slipgrid/input/pmdp_size={}_params={}".format(Z,V)
+        # gen_pMDP(N, terrain, model_name,
         #          loc_package, loc_warehouse)
         
-        model_name = "models/slipgrid/pmc_size={}_params={}_seed={}".format(Z,V,seed)
+        # Scale reward with the size of the grid world
+        reward = 10**(-math.floor(math.log(Z**2, 10)))
         
         _, json_path, drn_path = gen_pMDP_random(
-            N, slipping_probabilities, terrain, model_name, loc_package, loc_warehouse)
+            N, terrain, model_name, loc_package, loc_warehouse, reward)
         
-        BASH_FILE += ["python3 run_pmc.py --model '{}' --parameters '{}' --formula 'Rmin=? [F \"goal\"]' --terminal_label 'goal'; ".format(drn_path, json_path)]
+        BASH_FILE += ["python3 run_pmc.py --model '{}' --parameters '{}' --formula 'Rmin=? [F \"goal\"]' --verify--validate_delta 0.001 --output_folder 'output/slipgrid/' ".format(drn_path, json_path)]
+        
+BASH_FILE += ["#", "python3 parse_output.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
         
 # Export bash file to perform grid world experiments
 with open('experiments/grid_world.sh', 'w') as f:

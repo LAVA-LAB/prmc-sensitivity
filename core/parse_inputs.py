@@ -22,6 +22,13 @@ def parse_inputs(manualModel=None):
     parser.add_argument('--model', type=str, action="store", dest='model', 
                         default=manualModel, help="Path to PRISM model")
     
+    parser.add_argument('--pMC_engine', type=str, action="store", dest='pMC_engine', 
+                        default='spsolve', help="Engine to solve pMCs with")
+    
+    # parser.add_argument('--exact', dest='exact', action='store_true',
+    #                     help="Perform exact model checking")
+    # parser.set_defaults(exact=False)
+    
     # Path to parameter valuation file to load
     parser.add_argument('--parameters', type=str, action="store", dest='parameters', 
                         default=False, help="Path to parameter valuation file")
@@ -49,6 +56,9 @@ def parse_inputs(manualModel=None):
                         help="Validate gradients by an empirical perturbation analysis")
     parser.set_defaults(validate_gradients=False)
     
+    parser.add_argument('--validate_delta', type=float, action="store", dest='validate_delta', 
+                        default=1e-3, help="Step ")
+    
     # Switch to enable verbose mode
     parser.add_argument('--verbose', dest='verbose', action='store_true',
                         help="Verbose mode")
@@ -63,6 +73,16 @@ def parse_inputs(manualModel=None):
     
     parser.add_argument('--default_valuation', type=float, action="store", dest='default_valuation', 
                         default=0.5, help="Default parameter valuation")
+    
+    # Output folder
+    parser.add_argument('--output_folder', type=str, action="store", dest='output_folder', 
+                        default='output/', help="Folder in which to store results")
+    
+    parser.add_argument('--no_export', dest='no_export', action='store_true',
+                        help="Avoid exporting results")
+    parser.set_defaults(no_export=False)
+    
+    
     
     # Now, parse the command line arguments and store the
     # values in the `args` variable
@@ -81,5 +101,7 @@ def parse_inputs(manualModel=None):
     assert type(args.terminal_label) is tuple
     
     assert args.uncertainty_model in ['L0', 'L1']
+    
+    assert args.pMC_engine in ['storm', 'spsolve']
     
     return args

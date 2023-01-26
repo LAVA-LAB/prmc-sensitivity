@@ -305,16 +305,16 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
     else:
         m.Params.OutputFlag = 0
     
-    m.Params.Method = 2
+    # m.Params.Method = 2
     # m.Params.SimplexPricing = 3
     m.Params.NumericFocus = 3
     m.Params.ScaleFlag = 1
-    m.Params.Presolve = 1
+    # m.Params.Presolve = 1
     
     # m.Params.Crossover = 0
     
     x = m.addMVar(J.shape[1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
-    y = m.addMVar(Ju.shape[1], lb=0, ub=GRB.INFINITY)
+    y = m.addMVar(Ju.shape[1], lb=0, ub=1)
     
     # Switch between adding a (quadratically-penalized) slack variable
     if slackvar:

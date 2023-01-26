@@ -9,14 +9,29 @@ from core.commons import tocDiff
 
 import numpy as np
 import json
+import sys
 
 import stormpy
 import stormpy.core
-import stormpy.examples
-import stormpy.examples.files
 import stormpy._config as config
 
-def instantiate_pmdp(parameters, valuation, model):
+def get_pmdp_reward_vector(model, point):
+    
+    reward_model = next(iter(model.reward_models.values()))
+    R = np.zeros(len(model.states))
+    
+    for s in model.states:
+        if not model.is_sink_state(s):
+            if reward_model.has_state_rewards:
+                R[s.id] = float(reward_model.get_state_reward(s.id).evaluate(point))
+            elif reward_model.has_state_action_rewards:
+                R[s.id] = float(reward_model.get_state_action_reward(s.id).evaluate(point))
+            else:
+                sys.exit()
+                
+    return R
+
+def instantiate_pmdp(model, properties, parameters, valuation):
     
     if model.model_type.name == 'MDP':
         instantiator = stormpy.pars.PMdpInstantiator(model)
@@ -35,9 +50,37 @@ def instantiate_pmdp(parameters, valuation, model):
         
     instantiated_model = instantiator.instantiate(point)
     
-    return instantiated_model, params2states, point
+    return instantiated_model, point, params2states
 
-def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verbose = False):
+def verify_pmdp(instantiated_model, properties):
+    
+    # Compute model checking result
+    result = stormpy.model_checking(instantiated_model, properties[0])
+
+    return result
+
+def instantiate_verify_pmdp_exact(model, properties, parameters, valuation): 
+
+    inst_checker = stormpy.pars.PDtmcExactInstantiationChecker(model)
+    inst_checker.specify_formula(stormpy.ParametricCheckTask(properties[0].raw_formula, True))
+    inst_checker.set_graph_preserving(True)
+    env = stormpy.Environment()
+    
+    point = dict()
+    
+    params2states = {}
+    
+    for x in parameters:
+
+        point[x] = stormpy.RationalRF(float(valuation[x.name]))
+            
+        params2states[x] = set({})
+    
+    result = inst_checker.check(env, point)
+    
+    return result, point, params2states
+
+def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verbose = False, exact = False):
 
     print('Load PRISM model with STORM...')
     
@@ -48,9 +91,9 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
     
     import stormpy.pars
     
-    print('- Parse model...')
-    tocDiff(False)
-    
+    if verbose:
+        print('- Parse model...')
+        
     try:
         program = stormpy.parse_prism_program(path)
         properties = stormpy.parse_properties(formula, program)
@@ -59,21 +102,6 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
         properties = stormpy.parse_properties(formula)
         model = stormpy.build_parametric_model_from_drn(path)
     
-    print('-- Model parsed in {} seconds'.format(tocDiff(False)))
-    print('- Loop once over state space...')
-    
-    terminal_states = []
-    
-    for state in model.states:
-        successors = set()
-        for action in state.actions:
-            for transition in action.transitions:
-                successors.add(transition.column)
-                
-        if successors == set({state.id}):
-            terminal_states += [state.id]
-    
-    print("- Model supports parameters: {}".format(model.supports_parameters))
     parameters = model.collect_probability_parameters()
     print("- Number of parameters: {}".format(len(parameters)))
     
@@ -87,21 +115,16 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
         for x in parameters:
             valuation[x.name] = args.default_valuation
     
-    print("- Instantiate model...")
+    if verbose:
+        print("- Instantiate and check model...")
     
-    # Instantiate parameters
-    instantiated_model, params2states, point = instantiate_pmdp(parameters, valuation, model)
-    
-    print("- Model checking...")
-    
-    # Compute model checking result
-    result = stormpy.model_checking(instantiated_model, properties[0])
+    instantiated_model, point, params2states = instantiate_pmdp(model, properties, parameters, valuation)
     
     print("- Iterate once over all transitions...")
     
     # Store which parameters are related to which states
     for i,state in enumerate(model.states):
-        if i % 10000 == 0:
+        if i % 10000 == 0 and verbose:
             print('-- Check state {}'.format(i))
         
         for action in state.actions:
@@ -109,19 +132,7 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
                 
                 params = transition.value().gather_variables()
                 
-                '''
-                # Gather variables related to this transition
-                var = transition.value().gather_variables()
-                
-                # Get valuation for only those parameters
-                subpoint = {v: point[v] for v in var}
-                
-                p = transition.value().evaluate(subpoint)
-                if p > 1 or p < 0:
-                    print('-- WARNING: transition probability for ({},{},{}) is {}'.format(state.id, action.id, transition.column, p))
-                '''
-                
                 for x in params:
                     params2states[x].add(state)
     
-    return model, properties, terminal_states, instantiated_model, np.array(list(parameters)), valuation, point, result, params2states
+    return model, properties, np.array(list(parameters)), valuation, point, instantiated_model, params2states
