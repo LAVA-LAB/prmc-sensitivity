@@ -33,6 +33,9 @@ def parse_inputs(manualModel=None):
     parser.add_argument('--parameters', type=str, action="store", dest='parameters', 
                         default=False, help="Path to parameter valuation file")
     
+    parser.add_argument('--num_deriv', type=int, action="store", dest='num_deriv', 
+                        default=1, help="Number of K derivatives to return")
+    
     # Temporal logic formula
     parser.add_argument('--formula', type=str, action="store", dest='formula', 
                         default=None, help="Formula to verify")

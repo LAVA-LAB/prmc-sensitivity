@@ -353,6 +353,17 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
 
 
 
+# def spsolve_gurobi(J, Ju):
+    
+#     m = gp.Model('CVX')
+    
+#     x = m.addMVar(J.shape[1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
+#     m.addConstr(x == -Ju)
+#     m.setObjective(x, GRB.MINIMIZE)
+#     m.optimize()
+    
+#     return x.X
+
 class gradients_cvx:
     
     def __init__(self, M, x, alpha, beta, cns, verbose = False):

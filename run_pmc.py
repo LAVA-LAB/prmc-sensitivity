@@ -20,27 +20,22 @@ from tabulate import tabulate
 from datetime import datetime
 from gurobipy import GRB
 
-from core.commons import tocDiff
-
 # Load PRISM model with STORM
 root_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Parse arguments
 args = parse_inputs()
 
-#args.model = 'models/slipgrid/pmc_size=160_params=500_seed=0.drn'
-#args.formula = 'R=? [F "goal"]'
-#args.parameters = 'models/slipgrid/pmc_size=80_params=500_seed=0.json'
-#args.terminal_label = 'goal'
-#args.validate_delta = 0.001
+# args.model = 'models/PMC/slipgrid_fixed/slipgrid_fixed.nm'
+args.model   = 'models/slipgrid/dummy.nm'
+args.formula = 'R=? [F "goal"]'
+args.parameters = 'models/slipgrid/dummy_mle.json'
+args.num_deriv = 3
+args.validate_delta = 1e-6
 
 # SWITCH = 0
 
 # if SWITCH == 0:
-#     # args.model = 'models/PMC/slipgrid_fixed/slipgrid_fixed.nm'
-#     args.model   = 'models/slipgrid/input/pmc_size=80_params=5000_seed=0.nm'
-#     args.formula = 'R=? [F "goal"]'
-#     args.parameters = 'models/slipgrid/input/pmc_size=80_params=5000_seed=0.json'
 
 # elif SWITCH == 1:
 #     args.model = 'models/pdtmc/parametric_die.pm'
@@ -113,24 +108,36 @@ start_time = time.time()
 Ju = define_sparse_RHS(model, parameters, params2states, sols, subpoint)
 time_build_LP += time.time() - start_time
 
-print('Start solving...')
-
 # K, v, time = solve_cvx(J, Ju, sI, 1, solver='GUROBI', direction=cp.Maximize, verbose=True)
 # print('Parameter ID: {}; Gradient: {}; Solver time: {}'.format(K,v,time))
 # print('Chosen parameter is:', parameters[K])
 
+# Upper bound number of derivatives to the number of parameters
+args.num_deriv = min(args.num_deriv, len(parameters))
+
+print('\n--------------------------------------------------------------')
+print('Solve LP using Gurobi...')
 start_time = time.time()
-K, v, solve_time = solve_cvx_gurobi(J, Ju, sI, 1, direction=GRB.MAXIMIZE, verbose=True)
+K, v, solve_time = solve_cvx_gurobi(J, Ju, sI, args.num_deriv, direction=GRB.MAXIMIZE, verbose=False)
 time_solve_LP = time.time() - start_time
-print('Parameter ID: {}; Gradient: {}; Solver time: {}'.format(K,v,time))
-print('Chosen parameter is:', parameters[K])
+print('- LP solved in: {}'.format(time))
+# If the number of desired parameters >1, then we still need to obtain their values
+if args.num_deriv > 1:
+    Deriv = np.zeros_like(K, dtype=float)
+    
+    for i,k in enumerate(K):
+        Deriv[i] = sparse.linalg.spsolve(J, -Ju[:,k])[sI['s']] @ sI['p']
+        print('-- Derivative for parameter {} is: {}'.format(parameters[k], Deriv[i]))
+        
+else:
+    Deriv = np.array([v])
+    print('-- Derivative for parameter {} is: {}'.format(parameters[K], v))
+print('--------------------------------------------------------------\n')    
 
-# %%
 # Empirical validation of gradients
-
 sol_old = sols[sI['s']] @ sI['p']
 
-print('- Validate derivatives with delta of {}'.format(args.validate_delta))
+print('\n- Validate derivatives with delta of {}'.format(args.validate_delta))
 
 gradient_validate = {}
 for q,x in enumerate(parameters[K]):
@@ -171,7 +178,8 @@ sup_par = PD_gradient.idxmax()
 print('Minimum gradient: {} for parameter {}'.format(inf, inf_par))
 print('Maximum gradient: {} for parameter {}'.format(sup, sup_par))
 
-# %%
+
+
 
 # Export results
 if not args.no_export:
