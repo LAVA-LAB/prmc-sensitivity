@@ -1,5 +1,5 @@
 # List of used packages
-stormpy==1.7.0
+stormpy>=1.6.3
 cvxpy==1.2.2
 gurobipy==10.0.0
 numpy==1.23.5
