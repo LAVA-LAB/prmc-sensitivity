@@ -26,6 +26,9 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     packages=['prmcDifferentiator'],
+    cmdclass={
+        'test': PyTest
+    },
     zip_safe=False,
     install_requires=[
         'stormpy>=1.7.0', # Back-end model checker
