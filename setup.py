@@ -40,7 +40,7 @@ setup(
         'setuptools>=45.2.0',
         'scipy>=1.9.3', # For sparse matrices
         'tabulate>=0.9.0',
-        'skikit-umfpack'>='0.3.1' # Speed up SciPy
+        'skikit-umfpack>=0.3.1' # Speed up SciPy
     ],
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
