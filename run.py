@@ -22,11 +22,9 @@ args = parse_inputs()
 
 args.model = 'models/mdp/slipgrid.nm'
 args.formula = 'Rmin=? [F "goal"]'
-args.terminal_label = ('goal')
 
 # args.model = 'models/dtmc/dummy.nm'
 # args.formula = None
-# args.terminal_label = ('done')
 
 # args.validate_gradients = True
 

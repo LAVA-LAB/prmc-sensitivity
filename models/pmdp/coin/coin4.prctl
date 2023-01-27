@@ -1,0 +1,5 @@
+//P>=0.25 [ F "finished"&"all_coins_equal_1" ]
+Pmin=? [ F "finished" & "all_coins_equal_1" ]
+
+
+

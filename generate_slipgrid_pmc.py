@@ -15,6 +15,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 def gen_pMC(N, slipping_probabilities, policy_before, policy_after,
                       terrain, model_name, loc_package, loc_warehouse):
     
+    print('')
+    
     '''
     Generates a parametric Markov chain under a fixed policy for the 
     grid world example.
@@ -32,7 +34,8 @@ def gen_pMC(N, slipping_probabilities, policy_before, policy_after,
     slipping_estimates = {}
     for v,p in slipping_probabilities.items():
         
-        slipping_estimates[v] = np.random.binomial(N, p) / N
+        # Export tuple of MLE and sample size N
+        slipping_estimates[v] = [np.random.binomial(N[v], p) / N[v], N[v]]
     
     move_before = np.empty_like(policy_before, dtype=object)
     for x,row in enumerate(policy_before):
@@ -100,100 +103,23 @@ def gen_pMC(N, slipping_probabilities, policy_before, policy_after,
           ]
     
     # Print to file
-    with open(r'{}.nm'.format(model_name), 'w') as fp:
+    with open(r'{}.nm'.format(Path(ROOT_DIR,model_name)), 'w') as fp:
         fp.write('\n'.join(Q))
         
-    with open(r'{}.json'.format(model_name), 'w') as fp:
+    with open(r'{}.json'.format(Path(ROOT_DIR,model_name)), 'w') as fp:
         json.dump(slipping_probabilities, fp)
         
-    with open(r'{}_mle.json'.format(model_name), 'w') as fp:
+    with open(r'{}_mle.json'.format(Path(ROOT_DIR,model_name)), 'w') as fp:
         json.dump(slipping_estimates, fp)
         
     print('Exported model with name "{}"'.format(model_name))
     
-    
-    
-def gen_pMDP(N, terrain, model_name,
-             loc_package, loc_warehouse):
-    
-    '''
-    Generates a parametric MDP for the grid world example of arbitrary size.
-    Exports to a PRISM model file.
-    '''
-    
-    # Determine size of the grid
-    (Y,X) = terrain.shape  
-
-    # Note: first element is y, second element is x
-    dct = {'east':  (0,  1),
-           'south':  (1,  0),
-           'west':  (0, -1),
-           'north':  (-1, 0)
-            }
-    
-    Q = ['mdp\n']
-    
-    for t in np.unique(terrain):
-        Q += ['const double v{};'.format(t)]
         
-    Q += ['\n module grid',
-          '    x : [0..4] init 0;',
-          '    y : [0..4] init 0;',
-          '    z : [0..1] init 0;']
-    
-    for y,row in enumerate(terrain):
-        for x,ter in enumerate(row):
-            
-            # Iterate over possible moves
-            for lab, move in dct.items():
-                
-                # Compute new position
-                x_new = x + move[1]
-                y_new = y + move[0]
-                
-                # Check if out of bounds
-                if x_new < 0 or x_new >= X:
-                    continue
-                if y_new < 0 or y_new >= Y:
-                    continue
-                
-                # Check if we have reached the package
-                if (x_new, y_new) == loc_package:
-                    z_new = 'z+1'
-                else:
-                    z_new = 'z'
-                    
-                # Transition for before picking up the package
-                Q += ["    [{}] (x={}) & (y={}) & (z=0) -> 1-v{}: (x'={}) & (y'={}) & (z'={}) + v{}: (x'=x) & (y'=y) & (z'=z);".format(lab, x, y,
-                                                                                                                                   ter, x_new, y_new, z_new,  
-                                                                                                                                   ter)]
-       
-                # Now add transitions after picking up the package
-                Q += ["    [{}] (x={}) & (y={}) & (z=1) -> 1-v{}: (x'={}) & (y'={}) & (z'=z) + v{}: (x'=x) & (y'=y) & (z'=z);".format(lab, x, y,
-                                                                                                                                   ter, x_new, y_new,  
-                                                                                                                                   ter)]
-            
-    Q += ['endmodule\n',
-          '// reward structure (number of steps to reach the target)',
-          'rewards',
-          '    [east] true : 1;',
-          '    [south] true : 1;',
-          '    [west] true : 1;',
-          '    [north] true : 1;',
-          'endrewards\n',
-          'label "goal" = x={} & y={} & z=1;'.format(loc_warehouse[0], loc_warehouse[1])
-          ]
-    
-    # Print to file
-    with open(r'{}.nm'.format(model_name), 'w') as fp:
-        fp.write('\n'.join(Q))
-        
-    print('Exported model with name "{}"'.format(model_name))
-    
-    
     
 def gen_pMDP_random(N, terrain, model_name,
-                   loc_package, loc_warehouse, reward):
+                   loc_package, loc_warehouse, reward, nodrn=True):
+    
+    print('')
     
     '''
     Generates a parametric DTMC for the grid world example of arbitrary size,
@@ -279,31 +205,151 @@ def gen_pMDP_random(N, terrain, model_name,
           ]
     
     prism_path = str(Path(ROOT_DIR, str(model_name)+'.nm'))
-    drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
     
     # Export to PRISM file
     with open(r'{}'.format(prism_path), 'w') as fp:
         fp.write('\n'.join(Q))
         
-    print('Exported PRISM model with name "{}"'.format(model_name))
+    print('Exported model with name "{}"'.format(model_name))
     
-    # Convert from PRISM to DRN file
-    formula = 'Rmin=? [F \"goal\"]'
+    if nodrn is False:
     
-    program = stormpy.parse_prism_program(prism_path)
-    properties = stormpy.parse_properties(formula, program)
-    model = stormpy.build_parametric_model(program, properties)
+        drn_path   = str(Path(ROOT_DIR, str(model_name)+'_conv.drn'))    
     
-    stormpy.export_to_drn(model, drn_path)
+        # Convert from PRISM to DRN file
+        formula = 'Rmin=? [F \"goal\"]'
+        
+        program = stormpy.parse_prism_program(prism_path)
+        properties = stormpy.parse_properties(formula, program)
+        model = stormpy.build_parametric_model(program, properties)
+        
+        stormpy.export_to_drn(model, drn_path)
     
-    return prism_path, json_path, drn_path
+        path = drn_path
+    else:
+        path = prism_path
+    
+    return path
+
+
+def xyz_to_plain_state(x,y,z,X,Y):
+    
+    s = int(x + y*X + z*(X*Y))
+    return s
+
+def gen_pMDP_random_drn(N, terrain, model_name,
+                        loc_package, loc_warehouse, reward):
+    
+    '''
+    Generates a parametric DTMC for the grid world example of arbitrary size,
+    under a random policy.
+    Exports directly to a DRN file to avoid costly conversion by PRISM parser!
+    '''    
+    
+    print('')
+    
+    # Determine size of the grid
+    (Y,X) = terrain.shape  
+
+    # Note: first element is y, second element is x
+    dct = {'east':  (0,  1),
+           'south':  (1,  0),
+           'west':  (0, -1),
+           'north':  (-1, 0)
+            }
+    
+    Q = ['// Exported by generate_slipgrid_pmc.py',
+         '// Original model type: DTMC',
+         '@type: DTMC',
+         '@parameters']
+    
+    Q += [" ".join(['v{}'.format(t) for t in np.unique(terrain)])]
+        
+    Q += ['@reward_models\n',
+          '@nr_states',
+          str(int(X*Y*2)),
+          '@nr_choices',
+          str(int(X*Y*2)),
+          '@model']
+    
+    for z in [0,1]:
+        for y,row in enumerate(terrain):
+            for x,ter in enumerate(row):
+            
+                if x == 0 and y == 0 and z == 0:
+                    label = 'init'
+                    
+                elif (x,y) == loc_warehouse and z== 1:
+                    label = 'goal'
+                    
+                else:
+                    label = ''
+                    
+                s = xyz_to_plain_state(x, y, z, X, Y)
+                
+                Q += ['state {} [0] {}'.format(s, label)]
+                    
+                Q += ['\taction 0 [{}]'.format(0 if label == 'goal' else reward)]
+            
+                # Set goal state as terminal state
+                if label == 'goal':
+                    Q += ['\t\t{} : 1'.format(s)]
+                    
+                else:
+                    
+                    # Check how many moves we can make in this state (x,y)
+                    moves = 0
+                    if x > 0:
+                        moves += 1
+                    if y > 0:
+                        moves += 1
+                    if x < X-1:
+                        moves += 1
+                    if y < Y-1:
+                        moves += 1
+                    
+                    # Slipping
+                    Q += ['\t\t{} : v{}'.format(s, ter)]
+                
+                    # Iterate over possible moves
+                    for lab, move in dct.items():
+                        
+                        # Compute new position
+                        x_new = x + move[1]
+                        y_new = y + move[0]
+                        
+                        # Check if out of bounds
+                        if x_new < 0 or x_new >= X:
+                            continue
+                        if y_new < 0 or y_new >= Y:
+                            continue
+                        
+                        # Check if we have reached the package
+                        if (x_new, y_new) == loc_package:
+                            z_new = 1
+                        else:
+                            z_new = z
+                            
+                        s_new = xyz_to_plain_state(x_new, y_new, z_new, X, Y)        
+                        
+                        Q += ['\t\t{} : 1/{}*(1-v{})'.format(s_new, int(moves), ter)]
+                    
+    drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
+    
+    # Export to PRISM file
+    with open(r'{}'.format(drn_path), 'w') as fp:
+        fp.write('\n'.join(Q))
+        
+    print('Exported model directly to DRN with name "{}"'.format(model_name))
+    
+    return drn_path
     
 
 # %%
 ##########################################
 # Generate motivating example from paper #
 
-np.random.seed(4)
+np.random.seed(1)
 
 # Set ID's of terrain types
 terrain = np.array([
@@ -324,7 +370,13 @@ slipping_probabilities = {
     }
 
 # Generate rough estimate of the slipping probabilities
-N = 10
+N = {
+     'v1': 12,
+     'v2': 18,
+     'v3': 15,
+     'v4': 30,
+     'v5': 9
+     }
 
 # 0 = right, 1 = down, 2 = left, 3 = up
 # Policy before the package has been picked up
@@ -340,15 +392,15 @@ policy_before = np.array([
 policy_after = np.array([
     [0, 1, 1, 1, 1],
     [0, 1, 1, 1, 1],
-    [0, 0, 0, 1, 1],
-    [0, 0, 0, 1, 1],
-    [0, 0, 0, -1, 2]
+    [0, 0, 1, 1, 1],
+    [0, 1, 1, 1, 1],
+    [0, -1, 2, 2, 2]
     ])
 
 model_name = "models/slipgrid/dummy"
 
 loc_package   = (4, 1)
-loc_warehouse = (3, 4)
+loc_warehouse = (1, 4)
 
 gen_pMC(N, slipping_probabilities, policy_before, policy_after,
         terrain, model_name, loc_package, loc_warehouse)
@@ -358,8 +410,8 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 ##########################################
 # Generate other, random slipgrids
 
-grid_size = [100,400]
-no_params = [1000,10000,100000]
+grid_size = [50,200,800] #[100,400]
+no_params = [1000,10000,100000] #[1000,10000,100000]
 p_range = [0.01, 0.02]
 
 # Number of parameters to estimate probabilities with
@@ -405,26 +457,121 @@ for Z in grid_size:
             slipping_estimates[v] = max(min(np.random.binomial(N, p) / N, 1-delta), delta)
            
         json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
-        with open(r'{}.json'.format(model_name), 'w') as fp:
+        with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
             json.dump(slipping_probabilities, fp)
             
-        with open(r'{}_mle.json'.format(model_name), 'w') as fp:
+        with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
             json.dump(slipping_estimates, fp)
-        
-        # model_name = "models/slipgrid/input/pmdp_size={}_params={}".format(Z,V)
-        # gen_pMDP(N, terrain, model_name,
-        #          loc_package, loc_warehouse)
         
         # Scale reward with the size of the grid world
         reward = 10**(-math.floor(math.log(Z**2, 10)))
         
-        _, json_path, drn_path = gen_pMDP_random(
-            N, terrain, model_name, loc_package, loc_warehouse, reward)
+        path = gen_pMDP_random(
+            N, terrain, model_name, loc_package, loc_warehouse, reward, nodrn=True)
         
-        BASH_FILE += ["python3 run_pmc.py --model '{}' --parameters '{}' --formula 'Rmin=? [F \"goal\"]' --verify--validate_delta 0.001 --output_folder 'output/slipgrid/' ".format(drn_path, json_path)]
+        drn_path = gen_pMDP_random_drn(N, terrain, model_name,
+                                loc_package, loc_warehouse, reward)
+        
+        BASH_FILE += ["python3 run_pmc.py --model '{}' --parameters '{}' --formula 'Rmin=? [F \"goal\"]' --pMC_engine 'spsolve' --validate_delta 0.001 --output_folder 'output/slipgrid/'; ".format(drn_path, json_path)]
         
 BASH_FILE += ["#", "python3 parse_output.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
         
 # Export bash file to perform grid world experiments
-with open('experiments/grid_world.sh', 'w') as f:
+with open(str(Path(ROOT_DIR,'experiments/grid_world.sh')), 'w') as f:
     f.write("\n".join(BASH_FILE))
+    
+    
+    
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+# model_name = "models/slipgrid/input/pmdp_size={}_params={}".format(Z,V)
+        # gen_pMDP(N, terrain, model_name,
+        #          loc_package, loc_warehouse)
+   
+# def gen_pMDP(N, terrain, model_name,
+#              loc_package, loc_warehouse):
+    
+#     '''
+#     Generates a parametric MDP for the grid world example of arbitrary size.
+#     Exports to a PRISM model file.
+#     '''
+    
+#     # Determine size of the grid
+#     (Y,X) = terrain.shape  
+
+#     # Note: first element is y, second element is x
+#     dct = {'east':  (0,  1),
+#            'south':  (1,  0),
+#            'west':  (0, -1),
+#            'north':  (-1, 0)
+#             }
+    
+#     Q = ['mdp\n']
+    
+#     for t in np.unique(terrain):
+#         Q += ['const double v{};'.format(t)]
+        
+#     Q += ['\n module grid',
+#           '    x : [0..4] init 0;',
+#           '    y : [0..4] init 0;',
+#           '    z : [0..1] init 0;']
+    
+#     for y,row in enumerate(terrain):
+#         for x,ter in enumerate(row):
+            
+#             # Iterate over possible moves
+#             for lab, move in dct.items():
+                
+#                 # Compute new position
+#                 x_new = x + move[1]
+#                 y_new = y + move[0]
+                
+#                 # Check if out of bounds
+#                 if x_new < 0 or x_new >= X:
+#                     continue
+#                 if y_new < 0 or y_new >= Y:
+#                     continue
+                
+#                 # Check if we have reached the package
+#                 if (x_new, y_new) == loc_package:
+#                     z_new = 'z+1'
+#                 else:
+#                     z_new = 'z'
+                    
+#                 # Transition for before picking up the package
+#                 Q += ["    [{}] (x={}) & (y={}) & (z=0) -> 1-v{}: (x'={}) & (y'={}) & (z'={}) + v{}: (x'=x) & (y'=y) & (z'=z);".format(lab, x, y,
+#                                                                                                                                    ter, x_new, y_new, z_new,  
+#                                                                                                                                    ter)]
+       
+#                 # Now add transitions after picking up the package
+#                 Q += ["    [{}] (x={}) & (y={}) & (z=1) -> 1-v{}: (x'={}) & (y'={}) & (z'=z) + v{}: (x'=x) & (y'=y) & (z'=z);".format(lab, x, y,
+#                                                                                                                                    ter, x_new, y_new,  
+#                                                                                                                                    ter)]
+            
+#     Q += ['endmodule\n',
+#           '// reward structure (number of steps to reach the target)',
+#           'rewards',
+#           '    [east] true : 1;',
+#           '    [south] true : 1;',
+#           '    [west] true : 1;',
+#           '    [north] true : 1;',
+#           'endrewards\n',
+#           'label "goal" = x={} & y={} & z=1;'.format(loc_warehouse[0], loc_warehouse[1])
+#           ]
+    
+#     # Print to file
+#     with open(r'{}.nm'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+#         fp.write('\n'.join(Q))
+        
+#     print('Exported model with name "{}"'.format(str(Path(ROOT_DIR, str(model_name)))))

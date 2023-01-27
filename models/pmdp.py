@@ -50,6 +50,8 @@ def instantiate_pmdp(model, properties, parameters, valuation):
         
     instantiated_model = instantiator.instantiate(point)
     
+    params2states = get_parameters_to_states(model, params2states)
+    
     return instantiated_model, point, params2states
 
 def verify_pmdp(instantiated_model, properties):
@@ -78,9 +80,11 @@ def instantiate_verify_pmdp_exact(model, properties, parameters, valuation):
     
     result = inst_checker.check(env, point)
     
+    params2states = get_parameters_to_states(model, params2states)
+    
     return result, point, params2states
 
-def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verbose = False, exact = False):
+def parse_pmdp(path, args, param_path = False, policy = 'optimal', verbose = False):
 
     print('Load PRISM model with STORM...')
     
@@ -94,39 +98,61 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
     if verbose:
         print('- Parse model...')
         
-    try:
-        program = stormpy.parse_prism_program(path)
-        properties = stormpy.parse_properties(formula, program)
+    if path.suffix == '.drn':
+        properties = stormpy.parse_properties(args.formula)
+        model = stormpy.build_parametric_model_from_drn(str(path))
+    else:        
+        program = stormpy.parse_prism_program(str(path))
+        properties = stormpy.parse_properties(args.formula, program)
         model = stormpy.build_parametric_model(program, properties)
-    except:
-        properties = stormpy.parse_properties(formula)
-        model = stormpy.build_parametric_model_from_drn(path)
+        
     
     parameters = model.collect_probability_parameters()
     print("- Number of parameters: {}".format(len(parameters)))
     
     # Load parameter valuation
     if param_path:
-        with open(param_path) as json_file:
-            valuation = json.load(json_file)
+        with open(str(param_path)) as json_file:
+            valuation_raw = json.load(json_file)
+            valuation = {}
+            sample_size = {}
+            
+            for v,val in valuation_raw.items():
+                if type(val) == list:
+                    valuation[v],sample_size[v] = val
+                    
+                else:
+                    valuation = valuation_raw
+                    sample_size = None
+                    break
+            
     else:
         valuation = {}
+        sample_size = None
         
         for x in parameters:
             valuation[x.name] = args.default_valuation
     
-    if verbose:
-        print("- Instantiate and check model...")
+    if len(model.reward_models) == 0 and args.pMC_engine == 'spsolve':
+        print('\nWARNING: verifying using spsolve requires a reward model, but none is given.')
+        print('>> Switch to Storm for verifying model.\n')
+        args.pMC_engine = 'storm'
+        
+        # Storm often needs a larger perturbation delta to get reliable validation results
+        mindelta = 1e-3
+        
+        if args.validate_delta < mindelta:
+            print('>> Set parameter delta to {}'.format(mindelta))
+            args.validate_delta = mindelta
     
-    instantiated_model, point, params2states = instantiate_pmdp(model, properties, parameters, valuation)
+    return model, properties, np.array(list(parameters)), valuation, sample_size
+
+def get_parameters_to_states(model, params2states):
     
-    print("- Iterate once over all transitions...")
+    print("- Obtain mapping from parameters to states...")
     
     # Store which parameters are related to which states
     for i,state in enumerate(model.states):
-        if i % 10000 == 0 and verbose:
-            print('-- Check state {}'.format(i))
-        
         for action in state.actions:
             for transition in action.transitions:
                 
@@ -134,5 +160,5 @@ def parse_pmdp(path, formula, args, param_path = False, policy = 'optimal', verb
                 
                 for x in params:
                     params2states[x].add(state)
-    
-    return model, properties, np.array(list(parameters)), valuation, point, instantiated_model, params2states
+                    
+    return params2states

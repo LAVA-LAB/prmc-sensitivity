@@ -10,6 +10,10 @@ __pycache__/
 output/*
 !output/.keep
 
+# Models/slipgrid folder
+models/slipgrid/*
+!models/slipgrid/.keep
+
 # Output folder
 tables/*
 !tables/.keep

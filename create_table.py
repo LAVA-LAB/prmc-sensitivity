@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
@@ -34,6 +35,9 @@ if len(filenames) == 0:
 df = {}
 
 for i,file in enumerate(filenames):
+    if Path(file).suffix != '.json':
+        continue
+    
     print('-- Read file "{}"'.format(file))
     df[i] = pd.read_json(os.path.join(mypath, file), typ='series')
     

@@ -11,6 +11,7 @@ from core.pMC_LP import define_sparse_LHS, define_sparse_RHS
 import pandas as pd
 import numpy as np
 import scipy.sparse as sparse
+# from scikits.umfpack import spsolve as spsolve_umf
 import cvxpy as cp
 import os
 import time
@@ -19,6 +20,7 @@ from tqdm import tqdm
 from tabulate import tabulate
 from datetime import datetime
 from gurobipy import GRB
+import random
 
 # Load PRISM model with STORM
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,43 +28,14 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 # Parse arguments
 args = parse_inputs()
 
-# args.model = 'models/PMC/slipgrid_fixed/slipgrid_fixed.nm'
-args.model   = 'models/slipgrid/dummy.nm'
-args.formula = 'R=? [F "goal"]'
-args.parameters = 'models/slipgrid/dummy_mle.json'
-args.num_deriv = 3
-args.validate_delta = 1e-6
+# args.model = 'models/slipgrid/pmc_size=100_params=1000_seed=0_conv.drn'
+# args.parameters = 'models/slipgrid/pmc_size=100_params=1000_seed=0.json'
+# args.formula = 'Rmin=? [F \"goal\"]'
+# args.num_deriv = 1
 
-# SWITCH = 0
+# args.instance = 'Dummy_drn'
 
-# if SWITCH == 0:
-
-# elif SWITCH == 1:
-#     args.model = 'models/pdtmc/parametric_die.pm'
-#     args.formula = 'P=? [F s=7 & d=2]'
-#     args.parameters = 'models/pdtmc/parametric_die.json'
-
-# elif SWITCH == 2:
-#     args.model = 'models/POMDP/maze/maze_simple_extended_m5.drn'
-#     args.formula = 'R=? [F "goal"]'
-
-# elif SWITCH == 3:
-#     args.model = 'models/PMC/brp/brp_512_5.pm'
-#     args.formula = 'P=? [ F s=5 ]'
-#     args.parameters = 'models/PMC/brp/brp.json'
-    
-# elif SWITCH == 4:
-#     args.model = 'models/POMDP/drone/pomdp_drone_4-2-mem1-simple.drn'
-#     args.formula = 'P=? ["notbad" U "goal"]'
-    
-# elif SWITCH == 5:
-#     args.model = 'models/satellite/pomdp_satellite_36_sat_5_act_0_65_dist_5_mem_06_sparse_full.drn'
-#     args.formula = 'P=? [F "goal"]'
-    
-# elif SWITCH == 6:
-#     args.model = 'models/satellite/pomdp_prob_36_sat_065_dist_1_obs_diff_orb_len_40.drn'
-#     args.formula = 'P=? [F "goal"]'
-#     args.default_valuation = 0.2
+### Parse model
 
 current_time = datetime.now().strftime("%H:%M:%S")
 print('Program started at {}'.format(current_time))
@@ -70,11 +43,12 @@ print('\n',tabulate(vars(args).items(), headers=["Argument", "Value"]),'\n')
 
 start_time = time.time()
 
-model, properties, parameters, valuation, point, instantiated_model, params2states = parse_pmdp(
-    path = str(Path(root_dir, args.model)),
-    formula = args.formula,
+model, properties, parameters, valuation, sample_size = parse_pmdp(
+    path = Path(root_dir, args.model),
     args = args,
-    param_path = str(Path(root_dir, args.parameters)) if args.parameters else False)
+    param_path = Path(root_dir, args.parameters) if args.parameters else False)
+
+instantiated_model, point, params2states = instantiate_pmdp(model, properties, parameters, valuation)
 
 time_parse_model = time.time() - start_time
 print('\n',model)
@@ -82,6 +56,8 @@ print('\n',model)
 # Define initial state
 sI = {'s': np.array(model.initial_states), 
       'p': np.full(len(model.initial_states), 1/len(model.initial_states))}
+
+### Verify model
 
 print('Start defining J...')
 start_time = time.time()
@@ -108,36 +84,57 @@ start_time = time.time()
 Ju = define_sparse_RHS(model, parameters, params2states, sols, subpoint)
 time_build_LP += time.time() - start_time
 
-# K, v, time = solve_cvx(J, Ju, sI, 1, solver='GUROBI', direction=cp.Maximize, verbose=True)
-# print('Parameter ID: {}; Gradient: {}; Solver time: {}'.format(K,v,time))
-# print('Chosen parameter is:', parameters[K])
-
 # Upper bound number of derivatives to the number of parameters
 args.num_deriv = min(args.num_deriv, len(parameters))
+
+### Compute K most important parameters
 
 print('\n--------------------------------------------------------------')
 print('Solve LP using Gurobi...')
 start_time = time.time()
 K, v, solve_time = solve_cvx_gurobi(J, Ju, sI, args.num_deriv, direction=GRB.MAXIMIZE, verbose=False)
-time_solve_LP = time.time() - start_time
-print('- LP solved in: {}'.format(time))
+print('- LP solved in: {}'.format(solve_time))
 # If the number of desired parameters >1, then we still need to obtain their values
 if args.num_deriv > 1:
-    Deriv = np.zeros_like(K, dtype=float)
+    # Deriv = np.zeros_like(K, dtype=float)
     
-    for i,k in enumerate(K):
-        Deriv[i] = sparse.linalg.spsolve(J, -Ju[:,k])[sI['s']] @ sI['p']
-        print('-- Derivative for parameter {} is: {}'.format(parameters[k], Deriv[i]))
+    # for i,k in enumerate(K):
+    #     Deriv[i] = sparse.linalg.spsolve(J, -Ju[:,k])[sI['s']].T @ sI['p']
+    #     print('-- Derivative for parameter {} is: {:.3f}'.format(parameters[k], Deriv[i]))
+        
+    Deriv = sparse.linalg.spsolve(J, -Ju[:,K])[sI['s']].T @ sI['p']
         
 else:
     Deriv = np.array([v])
-    print('-- Derivative for parameter {} is: {}'.format(parameters[K], v))
+    print('-- Derivative for parameter {} is: {:.3f}'.format(parameters[K], v))
+time_solve_LP = time.time() - start_time   
 print('--------------------------------------------------------------\n')    
 
-# Empirical validation of gradients
-sol_old = sols[sI['s']] @ sI['p']
+### Baseline of computing parameters explicitly
+if args.explicit_baseline:
+    
+    start_time = time.time()
+    
+    # Select N random parameters
+    idxs = np.arange(len(parameters))
+    random.shuffle(idxs)
+    sample_idxs = idxs[:min(len(parameters), 100)]
+    
+    Deriv_expl = np.zeros(len(sample_idxs), dtype=float)
+    
+    for i,(q,x) in enumerate(zip(sample_idxs, parameters[sample_idxs])):
+        
+        Deriv_expl[i] = sparse.linalg.spsolve(J, -Ju[:,q])[sI['s']] @ sI['p']
+        
+    time_solve_explicit = (time.time() - start_time) * (len(parameters) / len(sample_idxs))
 
-print('\n- Validate derivatives with delta of {}'.format(args.validate_delta))
+# Empirical validation of gradients
+sol = sols[sI['s']] @ sI['p']
+
+
+
+
+print('\nValidate derivatives with delta of {}'.format(args.validate_delta))
 
 gradient_validate = {}
 for q,x in enumerate(parameters[K]):
@@ -148,23 +145,22 @@ for q,x in enumerate(parameters[K]):
     
     # Solve pMC (either use Storm, or simply solve equation system)
     if args.pMC_engine == 'storm':
-        print('- Verify with Storm...')
+        # print('- Verify with Storm...')
         result = verify_pmdp(instantiated_model, properties)
         sols_new = np.array(result.get_values(), dtype=float)
         
     else:
-        print('- Verify by solving sparse equation system...')
+        # print('- Verify by solving sparse equation system...')
         R = get_pmdp_reward_vector(model, point)
         J_delta, subpoint  = define_sparse_LHS(model, point)
         sols_new = sparse.linalg.spsolve(J_delta, R)
         
     sol_new = sols_new[sI['s']] @ sI['p']
     
-    grad = (sol_new-sol_old) / args.validate_delta
+    grad = (sol_new-sol) / args.validate_delta
     gradient_validate[x.name] = grad
     
-    if q % 100 == 0:
-        print('Validated #{}, parameter: {}, gradient: {}'.format(q,x,grad))
+    print('-- Parameter {}, LP: {:.3f}, val: {:.3f}, diff: {:.3f}'.format(x, grad, Deriv[q], (grad-Deriv[q])/Deriv[q]))
     
     valuation[x.name] -= args.validate_delta
 
@@ -175,7 +171,7 @@ inf_par = PD_gradient.idxmin()
 sup = PD_gradient.max()
 sup_par = PD_gradient.idxmax()
 
-print('Minimum gradient: {} for parameter {}'.format(inf, inf_par))
+print('\nMinimum gradient: {} for parameter {}'.format(inf, inf_par))
 print('Maximum gradient: {} for parameter {}'.format(sup, sup_par))
 
 
@@ -188,20 +184,24 @@ if not args.no_export:
     import json
     
     OUT = {
-           'instance': args.model,
+           'instance': args.model if not args.instance else args.instance,
            'formula': args.formula,
            'engine': args.pMC_engine,
            'states': model.nr_states,
            'transitions': model.nr_transitions,
            'parameters': len(valuation),
-           'parse [s]': time_parse_model,
-           'verify [s]': time_verify,
-           'build LP [s]': time_build_LP,
-           'solve LP [s]': time_solve_LP,
-           'LP max. partial': v,
+           'solution': sol,
+           'parse [s]': np.round(time_parse_model, 5),
+           'verify [s]': np.round(time_verify, 5),
+           'deriv. build LP [s]': np.round(time_build_LP, 5),
+           'deriv. solve LP [s]': np.round(time_solve_LP, 5),
+           'LP max. partial': list(np.round(Deriv, 5)),
            'LP max. param': [p.name for p in parameters[K]],
            'Val. max partial': sup
            }
+    
+    if args.explicit_baseline:
+        OUT['deriv. explicit [s]'] = time_solve_explicit
     
     output_path = Path(root_dir, args.output_folder)
     if not os.path.exists(output_path):
