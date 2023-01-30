@@ -8,7 +8,7 @@ Created on Tue Dec 20 15:22:11 2022
 import numpy as np
 from numpy.linalg import inv
 import scipy.linalg as linalg
-from scipy.sparse import coo_matrix, bmat, diags, identity, block_diag, csc_matrix, csr_matrix
+from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scikits.umfpack import spsolve as spsolve_umf
 import cvxpy as cp
@@ -22,57 +22,106 @@ from gurobipy import GRB
 
 class gradient:
 
-    def __init__(self, M, verbose = False):
+    def __init__(self, M, robust_bound, verbose = False):
+        '''
+        Initialize object to compute gradients for prMCs.
+
+        Parameters
+        ----------
+        M : prmc object
+
+        Returns
+        -------
+        None.
+
+        '''
         
-        self.num_states = len(M.states)
+        self.robust_bound = robust_bound
         
-        self.Da_f = -identity(M.robust_constraints, format='csc')
+        self.Da_f = -sparse.identity(M.robust_constraints, format='csc')
     
-        self.A11 = np.eye(len(M.states))
+        self.A11 = sparse.identity(len(M.states))
         for s in M.states:
-          if not s.terminal:
+          if not M.is_sink_state(s.id):
             for a in s.actions:
                 if not a.robust:                
                     for ss, p_hat in zip(a.successors, a.model.probabilities):
                         self.A11[s.id, ss] = -M.discount * s.policy[a.id] * p_hat
             
-        #TODO make this stuff more efficient:        
-            
-        self.A21 = np.zeros(( M.robust_successors, len(M.states) ))
+        # Define A21
+        A21_row = []
+        A21_col = []
+        A21_val = []
         i = 0
         for (s_id,a_id) in M.robust_pairs_suc.keys():
             succ = M.states_dict[s_id].actions_dict[a_id].successors
             for ss_id in succ:
-                self.A21[i, ss_id] = 1
+                A21_row += [i]
+                A21_col += [ss_id]
+                if robust_bound == 'lower':
+                    A21_val += [1]
+                else:
+                    A21_val += [-1]
                 i += 1
-    
-        self.A12 = np.zeros(( len(M.states), M.robust_constraints ))
-        self.A13 = np.zeros(( len(M.states), len(M.robust_pairs_suc) ))
+        
+        self.A21 = sparse.csc_matrix((A21_val, (A21_row, A21_col)), 
+                                     shape=(M.robust_successors, len(M.states)))
+            
+        A12_row = []
+        A12_col = []
+        A12_val = []
+        A13_row = []
+        A13_col = []
+        A13_val = []
+        
         for i, (s_id,a_id) in enumerate(M.robust_pairs_suc.keys()):
             s = M.states_dict[s_id]
             
             j = s.actions_dict[a_id].alpha_start_idx
             b = s.actions_dict[a_id].model.b
-    
-            self.A12[s_id, j:j+len(b)] = M.discount * s.policy[a_id] * valuate(b)
+            
+            if robust_bound == 'lower':
+                A12_vals = M.discount * s.policy[a_id] * valuate(b)
+            else:
+                A12_vals = -M.discount * s.policy[a_id] * valuate(b)
                 
-            self.A13[s_id, i] = M.discount * s.policy[a_id]
+            for l,jj in enumerate(range(j, j+len(b))):
+                A12_row += [s_id]
+                A12_col += [jj]
+                A12_val += [A12_vals[l]]
+                
+            A13_row += [s_id]
+            A13_col += [i]
+            if robust_bound == 'lower':
+                A13_val += [M.discount * s.policy[a_id]]
+            else:
+                A13_val += [-M.discount * s.policy[a_id]]
+        
+        self.A12 = sparse.csc_matrix((A12_val, (A12_row, A12_col)), 
+                                     shape=( len(M.states), M.robust_constraints ))
+        
+        self.A13 = sparse.csc_matrix((A13_val, (A13_row, A13_col)), 
+                                     shape=( len(M.states), len(M.robust_pairs_suc) ))
+        
+        self.A22 = sparse.block_diag([M.states_dict[s_id].actions_dict[a_id].model.A.T for (s_id,a_id) in M.robust_pairs_suc.keys() ], format='csc')
+        self.A23 = sparse.block_diag([np.ones(( n, 1 )) for n in M.robust_pairs_suc.values() ])
     
-        self.A22 = block_diag([M.states_dict[s_id].actions_dict[a_id].model.A.T for (s_id,a_id) in M.robust_pairs_suc.keys() ], format='csc')
-        self.A23 = block_diag([np.ones(( n, 1 )) for n in M.robust_pairs_suc.values() ])
+    
     
     def update(self, M, CVX, mode):
         
         # Completely remove dual variables lambda and nu
         if mode == 'remove_dual':
             
-            self.J = bmat([[ self.A11,  self.A12[:, CVX.keepalpha],   self.A13 ],
+            self.J = sparse.bmat([
+                           [ self.A11,  self.A12[:, CVX.keepalpha],   self.A13 ],
                            [ self.A21,  self.A22[:, CVX.keepalpha],   self.A23 ]], format='csc')
         
         # Reduce by removing redundant alpha and lambda dual variables
         elif mode == 'reduce_dual':
             
-            self.J = bmat([[ None,      None,                         None,     None,                           self.A11.T, self.A21.T ],
+            self.J = sparse.bmat([
+                           [ None,      None,                         None,     None,                           self.A11.T, self.A21.T ],
                            [ None,      None,                         None,     self.Da_f[:, CVX.keeplambda],   self.A12.T, self.A22.T ],
                            [ None,      None,                         None,     None,                           self.A13.T, self.A23.T ],
                            [ self.A11,  self.A12[:, CVX.keepalpha],   self.A13, None,                           None,       None  ],
@@ -81,10 +130,11 @@ class gradient:
         # Solve naively for the full system of equations with all dual variables
         else:        
     
-            LaDa_f = diags(np.concatenate([CVX.cns[('ineq',s,a)].dual_value for (s,a) in M.robust_pairs_suc.keys()]))
-            diag_f = diags(np.concatenate([CVX.alpha[(s,a)].value for (s,a) in M.robust_pairs_suc.keys()]))        
+            LaDa_f = sparse.diags(np.concatenate([CVX.alpha_dual[(s,a)] for (s,a) in M.robust_pairs_suc.keys()]))
+            diag_f = sparse.diags(np.concatenate([CVX.alpha_primal[(s,a)] for (s,a) in M.robust_pairs_suc.keys()]))        
     
-            self.J = bmat([[ None,      None,      None,       None,      self.A11.T,   self.A21.T ],
+            self.J = sparse.bmat([
+                           [ None,      None,      None,       None,      self.A11.T,   self.A21.T ],
                            [ None,      None,      None,       self.Da_f, self.A12.T,   self.A22.T ],
                            [ None,      None,      None,       None,      self.A13.T,   self.A23.T ],
                            [ None,      LaDa_f,    None,       diag_f,    None,         None  ],
@@ -97,14 +147,14 @@ class gradient:
             
             nr_rows = len(M.states) + M.robust_successors
             
-            iters = sum([len(M.param2stateAction[th]) for th in M.parameters.values()])
+            iters = sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
             row = [[]]*iters
             col = [[]]*iters
             data = [[]]*iters
             i = 0
             
             for v, (THETA_SA,THETA) in enumerate(M.parameters.items()):
-                for (s_id,a_id) in M.param2stateAction[THETA]:
+                for (s_id,a_id) in M.param2stateAction[THETA_SA]:
                     
                     j = M.states_dict[s_id].actions_dict[a_id].alpha_start_idx
                     b = M.states_dict[s_id].actions_dict[a_id].model.b
@@ -112,13 +162,16 @@ class gradient:
                     
                     row[i]  = np.array([s_id])
                     col[i]  = np.array([v])
-                    data[i] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha[(s_id, a_id)].value])
+                    if self.robust_bound == 'lower':
+                        data[i] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
+                    else:
+                        data[i] = -np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
                     
                     i += 1
             
         else:
             
-            iters = 2*sum([len(M.param2stateAction[th]) for th in M.parameters.values()])
+            iters = 2*sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
             row = [[]]*iters
             col = [[]]*iters
             data = [[]]*iters
@@ -135,7 +188,7 @@ class gradient:
                 nr_rows = 2*len(M.states) + len(M.robust_pairs_suc) + 2*M.robust_constraints + M.robust_successors
         
             for v, (THETA_SA,THETA) in enumerate(M.parameters.items()):
-                for (s_id,a_id) in M.param2stateAction[THETA]:
+                for (s_id,a_id) in M.param2stateAction[THETA_SA]:
                     
                     j = M.states_dict[s_id].actions_dict[a_id].alpha_start_idx
                     b = M.states_dict[s_id].actions_dict[a_id].model.b
@@ -143,20 +196,33 @@ class gradient:
                     
                     row[i]  = np.arange(j, j+len(b)) + offset_A
                     col[i]  = np.ones(len(b)) * v
-                    data[i] = M.discount * s.policy[a_id] * deriv_valuate(b, THETA) * CVX.cns[s_id].dual_value
+                    
+                    if self.robust_bound == 'lower':
+                        data[i] = M.discount * s.policy[a_id] * deriv_valuate(b, THETA) * CVX.cns_dual[s_id]
+                    else:
+                        data[i] = -M.discount * s.policy[a_id] * deriv_valuate(b, THETA) * CVX.cns_dual[s_id]
         
                     row[i+1]  = np.array([s_id + offset_B])
                     col[i+1]  = np.array([v])
-                    data[i+1] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha[(s_id, a_id)].value])
+                    
+                    if self.robust_bound == 'lower':
+                        data[i+1] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
+                    else:
+                        data[i+1] = -np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
                     
                     i += 2
     
-        self.Ju = csc_matrix((np.concatenate(data), 
+        self.Ju = sparse.csc_matrix((np.concatenate(data), 
                                  (np.concatenate(row), np.concatenate(col))), 
                                  shape=(nr_rows, len(M.parameters)))
         
         if mode == 'remove_dual':
             self.Ju = self.Ju[-self.J.shape[0]:, :]
+            
+        # If we are looking for the upper bound, then flip Ju to get the
+        # derivatives with the correct sign.
+        # if self.robust_bound == 'upper':
+        #     self.Ju = -self.Ju
        
     def solve_inversion(self, CVX):
         
@@ -275,8 +341,8 @@ def solve_cvx(J, Ju, sI, k, direction = cp.Maximize, solver = 'SCS', verbose = F
 
 
 
-def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
-                     slackvar = False):
+def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
+                     verbose = True, slackvar = False):
     '''
     Determine 'k' parameters with highest derivative in the initial state
 
@@ -297,8 +363,6 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
     
     print('Compute parameter importance via LP (GurobiPy)...')
     
-    tocDiff(False)
-    
     m = gp.Model('CVX')
     if verbose:
         m.Params.OutputFlag = 1
@@ -310,7 +374,6 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
     m.Params.NumericFocus = 3
     m.Params.ScaleFlag = 1
     # m.Params.Presolve = 1
-    
     # m.Params.Crossover = 0
     
     x = m.addMVar(J.shape[1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
@@ -342,14 +405,20 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE, verbose = True,
     if slackvar:
         print('Maximal slack value is {}'.format(np.max(np.abs(slack.X))))
     
-    time = tocDiff(False)
-    
     # Get the indices of the k parameters showing maximimum derivatives
     K = np.argpartition(y.X, -k)[-k:]
+    optimum = m.ObjVal
     
     print('')
     
-    return K, m.ObjVal, time
+    # If the number of desired parameters >1, then we still need to obtain their values
+    if k > 1: 
+        Deriv = sparse.linalg.spsolve(J, -Ju[:,K])[sI['s']].T @ sI['p']
+            
+    else:
+        Deriv = np.array([optimum])
+    
+    return K, Deriv
 
 
 
@@ -392,8 +461,8 @@ class gradients_cvx:
         
         self.Vcns = {}
         
-        for s in M.states: 
-            if not s.terminal:
+        for s in M.states:
+            if not M.is_sink_state(s.id):
                 for a in s.actions:
                     if a.robust:
                         self.Valpha[(s.id, a.id)] = cp.Variable(len(a.model.b))
@@ -424,7 +493,7 @@ class gradients_cvx:
                     
             self.Vcns[('g1', s.id)] = self.Vnu_primal[s.id] + SUM == 0
             
-            if not s.terminal:
+            if not M.is_sink_state(s.id):
               for a in s.actions:
                 if a.robust:
                     # 2)
@@ -465,7 +534,7 @@ class gradients_cvx:
                         
             # 5a) For each reward equality constraint, replace original decision
             # variables with the ones of the sensitivity problem
-            if s.terminal:
+            if M.is_sink_state(s.id):
                 if verbose:
                     print('-- State {} is terminal'.format(s.id))
                 
@@ -512,7 +581,7 @@ class gradients_cvx:
         Dtheta_h = np.zeros(len(M.states))
         
         for s in M.states:
-            if not s.terminal:
+            if not M.is_sink_state(s.id):
                 
                 for a in s.actions:                    
                     if a.robust:

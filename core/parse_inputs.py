@@ -37,7 +37,7 @@ def parse_inputs(manualModel=None):
     
     # Type of uncertainty model fo use
     parser.add_argument('--uncertainty_model', type=str, action="store", dest='uncertainty_model', 
-                        default='L0', help="Type of uncertainty model (L0, L1, ...)")
+                        default='Linf', help="Type of uncertainty model (Linf, L1, ...)")
     parser.add_argument('--uncertainty_size', type=float, action="store", dest='uncertainty_size', 
                         default=0.05, help="Size of the uncertainty set")
     
@@ -92,13 +92,18 @@ def parse_inputs(manualModel=None):
                         help="Perform baseline, which computes all derivatives explicitly")
     parser.set_defaults(explicit_baseline=False)
     
+    parser.add_argument('--no_gradient_validation', dest='no_gradient_validation', action='store_true',
+                        help="If provided, validation of computed derivatives (gradient) is skipped")
+    parser.set_defaults(no_gradient_validation=False)
+    
+    
     
     
     # Now, parse the command line arguments and store the
     # values in the `args` variable
     args = parser.parse_args()    
     
-    assert args.uncertainty_model in ['L0', 'L1']
+    assert args.uncertainty_model in ['Linf', 'L1']
     
     assert args.pMC_engine in ['storm', 'spsolve']
     

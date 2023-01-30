@@ -1,4 +1,4 @@
-# %run "~/documents/sensitivity-prmdps/prmdp-sensitivity-git/parse_output"
+# %run "~/documents/sensitivity-prmdps/prmdp-sensitivity-git/create_table.py"
 
 import argparse
 import pandas as pd
@@ -7,13 +7,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+pd.set_option('display.max_columns', 100)
+
 dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
 parser = argparse.ArgumentParser(description="Program to compute gradients for prMDPs")
 
 # Path to PRISM model to load
 parser.add_argument('--folder', type=str, action="store", dest='folder', 
-                    default='output/', help="Folder to combine output files from")
+                    default='output/slipgrid/', help="Folder to combine output files from")
 parser.add_argument('--table_name', type=str, action="store", dest='table_name', 
                     default='tables/export_{}'.format(dt), help="Name of table csv file")
 
@@ -43,9 +45,42 @@ for i,file in enumerate(filenames):
     
 df_merged = pd.concat(df, axis=1).T
 
+# Round to 3 decimal places
+round_keys = ['Solution', 'LP (solve) [s]', 'Max. derivatives',
+              'Max. validation', 'Difference %', 
+              'Differentiate explicitly [s]']
+
+for key in round_keys:
+    if key in df_merged:
+        df_merged[key] = df_merged[key].map('{:,.3f}'.format)
+    else:
+        print('Warning, key `{}` not in dataframe'.format(key))
+
+# Sort by 1) states and 2) parameters
+df_merged.sort_values(['States', 'Parameters'],
+                      ascending = [True, True],
+                      inplace = True)
+
+# Only keep certain columns for Latex table
+table_columns = [#'Instance', 
+                 'States', 
+                 'Transitions', 
+                 'Parameters',
+                 'Solution']
+
+if 'Differentiate explicitly [s]' in df_merged:
+    table_columns += ['Differentiate explicitly [s]']
+    
+table_columns += ['LP (solve) [s]',
+                 'Max. derivatives', 
+                 'Max. validation', 
+                 'Difference %']
+
 print('- All files merged into a single Pandas DataFrame')
 
 df_merged.to_csv(os.path.join(root_dir, args.table_name + '.csv'))
-df_merged.to_latex(os.path.join(root_dir, args.table_name + '.tex'))
+df_merged.to_latex(os.path.join(root_dir, args.table_name + '.tex'),
+                   columns=table_columns,
+                   index=False)
 
 print('- Exported to CSV and LaTeX table')

@@ -3,28 +3,33 @@ import numpy as np
 
 class poly(object):
     
-    def __init__(self, param, coeff):
+    def __init__(self, param, coeff, power):
         '''
         Polynomial object
         
         Parameters
         ----------
         param : Parameter for this polynomial
-        coeff : Dictionary or list for the coefficients
+        coeff : Multiplication factors
+        powers : Powers of the polynomials (noninteger allowed)
         '''
         
-        if type(coeff) == dict:
-            self.coeff = [0]*(max(coeff.keys())+1)
-            for k,v in coeff.items():
-                self.coeff[k] = v
-        else:
-	        self.coeff = coeff
+        self.par = param
+        self.coeff = coeff
+        self.power = power
+        
+#         if type(coeff) == dict:
+#             self.coeff = [0]*(max(coeff.keys())+1)
+#             for k,v in coeff.items():
+#                 self.coeff[k] = v
+#         else:
+# 	        self.coeff = coeff
                 
         self.par  = param
     
     def __str__(self):
         print_list = []
-        for p,c in enumerate(self.coeff):
+        for p,c in zip(self.power, self.coeff):
             if c == 0:
                 continue
             elif c == 1 and p==0:
@@ -37,9 +42,9 @@ class poly(object):
             if p == 0:
                 add_p = ''
             elif p == 1:
-                add_p = 'v'
+                add_p = str(self.par)
             else:
-                add_p = 'v^'+str(p)
+                add_p = '*{}^{}'.format(self.par, p)
                 
             print_list += [add_c + add_p]
         
@@ -52,9 +57,10 @@ class poly(object):
         # Check if ID of the provided parameter equals that of this polynomial
         if param.id == self.par.id:
         
-            coeff_der = np.polynomial.polynomial.polyder(self.coeff)
-    
-            return sum([c * self.par.value ** i for i,c in enumerate(coeff_der)])
+            return sum([c * p * self.par.value ** (p-1) if p != 0 else 0 for p,c in zip(self.power, self.coeff)])    
+        
+            # coeff_der = np.polynomial.polynomial.polyder(self.coeff)
+            # return sum([c * self.par.value ** p for p,c in enumerate(coeff_der)])
     
         # If the IDs don't match, then the derivative is zero by default
         else:
@@ -64,7 +70,7 @@ class poly(object):
         # Evaluate the polynomial to get the CVXPY expression
         
         expr = 0
-        for p,c in enumerate(self.coeff):
+        for p,c in zip(self.power, self.coeff):
             if p == 0:
                 expr += c
             elif p == 1:
@@ -82,30 +88,32 @@ class poly(object):
         # Evaluate the polynomial and return the value evaluated at the 
         # current parameter value
         
-        return cp.sum([c * self.par.value ** i for i,c in enumerate(self.coeff)])
+        val = cp.sum([c * self.par.value ** p for p,c in zip(self.power, self.coeff)])
+        
+        return val
     
     
 
-class polytope(object):
+# class polytope(object):
     
-    def __init__(self, A, b):
+#     def __init__(self, A, b):
         
-        self.A = A
-        self.b = b
+#         self.A = A
+#         self.b = b
         
-    def showA(self):
+#     def showA(self):
         
-        string = np.vectorize(lambda x: x.print() if isinstance(x, poly) else str(x), 
-                             otypes=[str])
+#         string = np.vectorize(lambda x: x.print() if isinstance(x, poly) else str(x), 
+#                              otypes=[str])
         
-        return string(self.A)
+#         return string(self.A)
         
-    def dA_eval(self):
-        # Differentiate A matrix and return the value evaluated at the 
-        # current parameter value
+#     def dA_eval(self):
+#         # Differentiate A matrix and return the value evaluated at the 
+#         # current parameter value
         
-        dA = np.array([[
+#         dA = np.array([[
             
-            ]])
+#             ]])
         
-        return 
+#         return 

@@ -116,7 +116,7 @@ def gen_pMC(N, slipping_probabilities, policy_before, policy_after,
     
         
     
-def gen_pMDP_random(N, terrain, model_name,
+def gen_pMDP_random(terrain, model_name,
                    loc_package, loc_warehouse, reward, nodrn=True):
     
     print('')
@@ -235,6 +235,7 @@ def gen_pMDP_random(N, terrain, model_name,
 def xyz_to_plain_state(x,y,z,X,Y):
     
     s = int(x + y*X + z*(X*Y))
+        
     return s
 
 def gen_pMDP_random_drn(N, terrain, model_name,
@@ -267,10 +268,12 @@ def gen_pMDP_random_drn(N, terrain, model_name,
         
     Q += ['@reward_models\n',
           '@nr_states',
-          str(int(X*Y*2)),
+          str(int(X*Y*2-1)),
           '@nr_choices',
-          str(int(X*Y*2)),
+          str(int(X*Y*2-1)),
           '@model']
+    
+    s_package = xyz_to_plain_state(loc_package[0], loc_package[1], 0, X, Y)
     
     for z in [0,1]:
         for y,row in enumerate(terrain):
@@ -279,13 +282,18 @@ def gen_pMDP_random_drn(N, terrain, model_name,
                 if x == 0 and y == 0 and z == 0:
                     label = 'init'
                     
-                elif (x,y) == loc_warehouse and z== 1:
+                elif (x,y) == loc_warehouse and z == 1:
                     label = 'goal'
                     
                 else:
                     label = ''
                     
                 s = xyz_to_plain_state(x, y, z, X, Y)
+                
+                if s == s_package:
+                    continue
+                elif s > s_package:
+                    s -= 1
                 
                 Q += ['state {} [0] {}'.format(s, label)]
                     
@@ -332,6 +340,9 @@ def gen_pMDP_random_drn(N, terrain, model_name,
                             
                         s_new = xyz_to_plain_state(x_new, y_new, z_new, X, Y)        
                         
+                        if s_new > s_package:
+                            s_new -= 1
+                        
                         Q += ['\t\t{} : 1/{}*(1-v{})'.format(s_new, int(moves), ter)]
                     
     drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
@@ -349,7 +360,7 @@ def gen_pMDP_random_drn(N, terrain, model_name,
 ##########################################
 # Generate motivating example from paper #
 
-np.random.seed(1)
+np.random.seed(4)
 
 # Set ID's of terrain types
 terrain = np.array([
@@ -359,6 +370,25 @@ terrain = np.array([
     [2, 2, 2, 5, 5],
     [2, 2, 2, 5, 5]
     ])
+
+# Set slipping probabilities (v1 corresponds with terrin type 1)
+slipping_probabilities = {
+    'v1': 0.40,
+    'v2': 0.40,
+    'v3': 0.45,
+    'v4': 0.50,
+    'v5': 0.35
+    }
+
+# Generate rough estimate of the slipping probabilities
+N = {
+     'v1': 12*2,
+     'v2': 18*2,
+     'v3': 15*2,
+     'v4': 30*2,
+     'v5': 11*2
+     }
+'''
 
 # Set slipping probabilities (v1 corresponds with terrin type 1)
 slipping_probabilities = {
@@ -377,6 +407,7 @@ N = {
      'v4': 30,
      'v5': 9
      }
+'''
 
 # 0 = right, 1 = down, 2 = left, 3 = up
 # Policy before the package has been picked up
@@ -410,18 +441,22 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 ##########################################
 # Generate other, random slipgrids
 
-grid_size = [50,200,800] #[100,400]
-no_params = [1000,10000,100000] #[1000,10000,100000]
+grid_size = [5] #[50,100,150] #[50,200,800]
+no_params = [20] #[100,1000,10000] #[1000,10000,100000]
 p_range = [0.01, 0.02]
 
 # Number of parameters to estimate probabilities with
-N = 1000
+Nmin = 50
+Nmax = 300
+N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=no_params), dtype=int)
 
 ITERS = 1
 
 BASH_FILE = ["#!/bin/bash",
              "cd ..;",
              'echo -e "START GRID WORLD EXPERIMENTS...";']
+
+num_derivs = 10
 
 for Z in grid_size:
   for V in no_params:
@@ -452,9 +487,9 @@ for Z in grid_size:
         
         # Obtain point estimates for each of the transition probabilities
         slipping_estimates = {}
-        for v,p in slipping_probabilities.items():
+        for i,(v,p) in enumerate(slipping_probabilities.items()):
             
-            slipping_estimates[v] = max(min(np.random.binomial(N, p) / N, 1-delta), delta)
+            slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), float(N[i])]
            
         json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
         with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
@@ -467,14 +502,25 @@ for Z in grid_size:
         reward = 10**(-math.floor(math.log(Z**2, 10)))
         
         path = gen_pMDP_random(
-            N, terrain, model_name, loc_package, loc_warehouse, reward, nodrn=True)
+            terrain, model_name, loc_package, loc_warehouse, reward, nodrn=True)
         
         drn_path = gen_pMDP_random_drn(N, terrain, model_name,
                                 loc_package, loc_warehouse, reward)
         
-        BASH_FILE += ["python3 run_pmc.py --model '{}' --parameters '{}' --formula 'Rmin=? [F \"goal\"]' --pMC_engine 'spsolve' --validate_delta 0.001 --output_folder 'output/slipgrid/'; ".format(drn_path, json_path)]
+        command = ["python3 run_pmc.py",
+                   '--instance "grid({},{})"'.format(Z,V),
+                   "--model '{}'".format(drn_path),
+                   "--parameters '{}'".format(json_path),
+                   "--formula 'Rmin=? [F \"goal\"]'",
+                   "--pMC_engine 'spsolve'",
+                   "--validate_delta 1e-6",
+                   "--output_folder 'output/slipgrid/'",
+                   "--num_deriv {}".format(num_derivs),
+                   "--explicit_baseline;"]
         
-BASH_FILE += ["#", "python3 parse_output.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
+        BASH_FILE += [" ".join(command)]
+        
+BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
         
 # Export bash file to perform grid world experiments
 with open(str(Path(ROOT_DIR,'experiments/grid_world.sh')), 'w') as f:
