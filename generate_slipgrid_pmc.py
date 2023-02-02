@@ -525,7 +525,7 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 # Generate other, random slipgrids
 
 grid_size = [800] #[10, 25, 50, 100, 200, 400, 800] #[50,200,800]
-no_params = [100000] #[10, 100, 1000, 10000, 100000] #[1000,10000,100000]
+no_params = [100] #[10, 100, 1000, 10000, 100000] #[1000,10000,100000]
 p_range = [0.10, 0.20]
 
 # Number of parameters to estimate probabilities with
