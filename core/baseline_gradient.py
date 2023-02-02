@@ -10,7 +10,7 @@ def explicit_gradient(pmc, args, J, Ju):
     # Select N random parameters
     idxs = np.arange(len(pmc.parameters))
     random.shuffle(idxs)
-    sample_idxs = idxs[:min(len(pmc.parameters), 100)]
+    sample_idxs = idxs[:min(len(pmc.parameters), 10)]
     
     deriv_expl = np.zeros(len(sample_idxs), dtype=float)
     
