@@ -5,3 +5,6 @@
     $ git clone https://github.com/scikit-umfpack/scikit-umfpack.git
     $ cd scikit-umfpack
     $ python setup.py install
+
+Activate environment:
+source prmdps/bin/activate
