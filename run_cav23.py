@@ -47,8 +47,6 @@ print('=============================================')
 
 ### prMC execution
 
-assert False
-
 # Check if we should also run the prMC part
 if not args.no_prMC:
     
