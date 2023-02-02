@@ -62,7 +62,7 @@ def Hoeffding_interval(center, confidence, parameter, min_probability):
         
         # Check if probability interval goes beyond [0,1] interval
         if center[d] + epsilon > 1:
-            print('- Add constraint for {}, d={}, to keep upper bound below 1'.format(parameter, d))
+            # print('- Add constraint for {}, d={}, to keep upper bound below 1'.format(parameter, d))
             
             A_entry = np.zeros(n)
             A_entry[d] = 1
@@ -71,7 +71,7 @@ def Hoeffding_interval(center, confidence, parameter, min_probability):
             b_add += [1]
             
         if center[d] - epsilon < min_probability:
-            print('- Add constraint for {}, d={}, to keep lower bound above {}'.format(parameter, d, min_probability))
+            # print('- Add constraint for {}, d={}, to keep lower bound above {}'.format(parameter, d, min_probability))
             
             A_entry = np.zeros(n)
             A_entry[d] = -1

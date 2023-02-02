@@ -58,9 +58,9 @@ def run_prmc(pmc, args, inst, verbose):
             if trials < trials_max:
                 trials += 1
                 
-                args.beta_penalty *= 10
+                prmc.beta_penalty *= 10
                 solver_verbose = True
-                print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...\n'.format(args.beta_penalty, trials_max-trials))
+                print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...\n'.format(prmc.beta_penalty, trials_max-trials))
                 
                 print('- Add small delta to reward vector to break symmetry...')
                 pmc.reward += 1e-2*np.random.rand(len(pmc.reward))
