@@ -26,9 +26,9 @@ args.root_dir = os.path.dirname(os.path.abspath(__file__))
 # args.instance ='dummy'
 # args.robust_bound = 'upper'
 
-args.model = 'models/pdtmc/brp512_5.pm'
-args.formula = 'P=? [ F s=5 ]'
-args.goal_label = '(s = 5)'
+# args.model = 'models/pdtmc/brp512_5.pm'
+# args.formula = 'P=? [ F s=5 ]'
+# args.goal_label = '(s = 5)'
 
 ### pMC execution
 
