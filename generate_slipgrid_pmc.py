@@ -620,7 +620,7 @@ for (Z,V) in cases:
                        "--robust_bound 'lower'",
                        "--scale_reward"]
             
-            if Z > 200:
+            if (Z >= 100 and mode == 'fix') or (Z >= 200 and mode == 'double'):
                 command += ["--no_prMC"]
             
             BASH_FILE += [" ".join(command)+";"]

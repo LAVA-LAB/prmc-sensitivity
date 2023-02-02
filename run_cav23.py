@@ -26,9 +26,9 @@ args.root_dir = os.path.dirname(os.path.abspath(__file__))
 # args.instance ='dummy'
 # args.robust_bound = 'upper'
 
-# args.model = 'models/pdtmc/brp_512_5.pm'
-# args.formula = 'P=? [ F s=5 ]'
-# args.goal_label = '(s = 5)'
+args.model = 'models/pdtmc/brp512_5.pm'
+args.formula = 'P=? [ F s=5 ]'
+args.goal_label = '(s = 5)'
 
 ### pMC execution
 
@@ -46,6 +46,8 @@ print('\npMC code ended at {}\n'.format(current_time))
 print('=============================================')
 
 ### prMC execution
+
+assert False
 
 # Check if we should also run the prMC part
 if not args.no_prMC:

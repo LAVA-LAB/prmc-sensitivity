@@ -39,6 +39,8 @@ def run_pmc(args, model_path, param_path, verbose):
     J, subpoint  = define_sparse_LHS(pmc.model, inst['point'])
     T['build_matrices'] = time.time() - start_time
     
+    print('DET:', np.linalg.det(J.toarray()))
+    
     if args.goal_label is not None:
         pmc.reward = get_pmdp_reward_from_label(pmc.model, args.goal_label)
     else:
