@@ -1,7 +1,7 @@
 import time
 import numpy as np
 
-from core.poly import poly
+from core.polynomial import polynomial
 
 def TicTocGenerator():
     ''' Generator that returns the elapsed run time '''
@@ -72,10 +72,10 @@ def unit_vector(size, pos):
 
 
 
-valuate = np.vectorize(lambda x: x.val() if isinstance(x, poly) else x, 
+valuate = np.vectorize(lambda x: x.val() if isinstance(x, polynomial) else x, 
                      otypes=[float])
 
-deriv_valuate = np.vectorize(lambda x,y: x.deriv_eval(y) if isinstance(x, poly) else 0, 
+deriv_valuate = np.vectorize(lambda x,y: x.deriv_eval(y) if isinstance(x, polynomial) else 0, 
                      otypes=[float])
 
 

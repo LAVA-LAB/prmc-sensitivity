@@ -46,8 +46,7 @@ for i,file in enumerate(filenames):
 df_merged = pd.concat(df, axis=1).T
 
 # Round to 3 decimal places
-round_keys = ['Solution', 'LP (solve) [s]', 'Max. derivatives',
-              'Max. validation', 'Difference %', 
+round_keys = ['Solution', 'LP (solve) [s]', 'Difference %', 
               'Differentiate explicitly [s]']
 
 for key in round_keys:
@@ -56,16 +55,22 @@ for key in round_keys:
     else:
         print('Warning, key `{}` not in dataframe'.format(key))
 
+df_merged['Max. derivatives'] = df_merged['Max. derivatives'].map('{:,.2e}'.format)
+if 'Max. validation' in df_merged:
+    df_merged['Max. validation'] = df_merged['Max. validation'].map('{:,.2e}'.format)
+
+print(df_merged)
+
 # Sort by 1) states and 2) parameters
-df_merged.sort_values(['States', 'Parameters'],
-                      ascending = [True, True],
+df_merged.sort_values(['Type', 'States', 'Parameters', 'Transitions'],
+                      ascending = [True, True, True, True],
                       inplace = True)
 
 # Only keep certain columns for Latex table
-table_columns = [#'Instance', 
+table_columns = ['Type', 
                  'States', 
-                 'Transitions', 
                  'Parameters',
+                 'Transitions',
                  'Solution']
 
 if 'Differentiate explicitly [s]' in df_merged:

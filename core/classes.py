@@ -1,22 +1,12 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Dec 16 13:44:50 2022
-
-@author: Thom Badings
-"""
-
-from core.commons import tocDiff
-
 import numpy as np
 import json
-import sys
-
 import stormpy
 import stormpy.core
 import stormpy._config as config
-import copy
+from tabulate import tabulate
 
-class pMDP:
+
+class PMC:
     
     def __init__(self, model_path, args,
                  policy = 'optimal', verbose = False):
@@ -140,94 +130,88 @@ class pMDP:
         return params2states
 
 
-def get_pmdp_reward_vector(model, point):
-    
-    reward_model = next(iter(model.reward_models.values()))
-    R = np.zeros(len(model.states))
-    
-    for s in model.states:
-        if not model.is_sink_state(s):
-            if reward_model.has_state_rewards:
-                R[s.id] = float(reward_model.get_state_reward(s.id).evaluate(point))
-            elif reward_model.has_state_action_rewards:
-                R[s.id] = float(reward_model.get_state_action_reward(s.id).evaluate(point))
-            else:
-                sys.exit()
-                
-    return R
 
-
-
-def verify_pmdp_storm(instantiated_model, properties, sI):
+class PRMC:
     
-    # Compute model checking result
-    result = stormpy.model_checking(instantiated_model, properties[0])
-    array  = np.array(result.get_values(), dtype=float)
-
-    return array
-
-# def instantiate_verify_pmdp_exact(model, properties, parameters, valuation): 
-
-#     inst_checker = stormpy.pars.PDtmcExactInstantiationChecker(model)
-#     inst_checker.specify_formula(stormpy.ParametricCheckTask(properties[0].raw_formula, True))
-#     inst_checker.set_graph_preserving(True)
-#     env = stormpy.Environment()
-    
-#     point = dict()
-    
-#     params2states = {}
-    
-#     for x in parameters:
-
-#         point[x] = stormpy.RationalRF(float(valuation[x.name]))
-            
-#         params2states[x] = set({})
-    
-#     result = inst_checker.check(env, point)
-    
-#     params2states = get_parameters_to_states(model, params2states)
-    
-#     return result, point, params2states
-
-
-
-# def parse_pmdp(path, args, param_path = False, policy = 'optimal', verbose = False):
-
-    
-    
-#     # Load parameter valuation
-#     if param_path:
-#         with open(str(param_path)) as json_file:
-#             valuation_raw = json.load(json_file)
-#             valuation = {}
-#             sample_size = {}
-            
-#             for v,val in valuation_raw.items():
-#                 if type(val) == list:
-#                     valuation[v],sample_size[v] = val
-                    
-#                 else:
-#                     valuation = valuation_raw
-#                     sample_size = None
-#                     break
-            
-#     else:
-#         valuation = {}
-#         sample_size = None
+    def __init__(self, num_states):
         
-#         for x in parameters:
-#             valuation[x.name] = args.default_valuation
-    
-#     if len(model.reward_models) == 0 and args.pMC_engine == 'spsolve':
-#         print('\nWARNING: verifying using spsolve requires a reward model, but none is given.')
-#         print('>> Switch to Storm for verifying model.\n')
-#         args.pMC_engine = 'storm'
+        self.states_dict = {}
+        self.parameters = {}
+        self.sample_size = {}
+        self.parameters_max_value = {}
+        self.param2stateAction = {}
         
-#         # Storm often needs a larger perturbation delta to get reliable validation results
-#         mindelta = 1e-3
+        self.robust_pairs_suc = {}
+        self.robust_constraints = 0
+        self.robust_successors = 0
         
-#         if args.validate_delta < mindelta:
-#             print('>> Set parameter delta to {}'.format(mindelta))
-#             args.validate_delta = mindelta
+        # Adjacency matrix between successor states and polytope constraints
+        self.poly_pre_state = {s: set() for s in range(num_states)}
+        self.distr_pre_state = {s: set() for s in range(num_states)}
+        
+    def __str__(self):
+        
+        items = {
+            'No. states': len(self.states),
+            'No. parameters': len(self.parameters),
+            'Robust transitions': self.robust_successors,
+            'Robust constraints': self.robust_constraints,
+            'Discount factor': self.discount
+            }
+        
+        print_list = [[k,v] for (k,v) in items.items()]
+        
+        return '\n' + tabulate(print_list, headers=["Property", "Value"]) + '\n'
+        
+    def set_state_iterator(self):
+        
+        self.states = self.states_dict.values()
+        
+    def set_initial_states(self, sI):
+        
+        self.sI = {'s': np.array(sI), 'p': np.full(len(sI), 1/len(sI))}
+
+    def set_reward_models(self, rewards):
+        
+        self.rewards = rewards
+        
+    def get_state_set(self):
+        
+        return set(self.states_dict.keys())
+
+class state:
     
-#     return model, properties, np.array(list(parameters)), valuation, sample_size
+    def __init__(self, id):
+        
+        self.id = id
+        self.initial = False
+        self.actions_dict = {}
+
+    def set_action_iterator(self):
+        
+        self.actions = self.actions_dict.values()
+        
+class action:
+    
+    def __init__(self, id):
+        
+        self.id = id
+        self.model = None # Uncertainty model
+        self.deterministic = False # Is this transition deterministic?
+        self.robust = False # Action has uncertain/robust probabilities?
+        self.successors = []
+        
+class distribution:
+    
+    def __init__(self, states, probabilities):
+        
+        self.states = states
+        self.probabilities = probabilities
+        
+class polytope:
+    
+    def __init__(self, A, b):
+        
+        self.A = A
+        self.b = b
+

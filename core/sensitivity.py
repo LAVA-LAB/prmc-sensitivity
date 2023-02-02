@@ -7,16 +7,12 @@ Created on Tue Dec 20 15:22:11 2022
 
 import numpy as np
 from numpy.linalg import inv
-import scipy.linalg as linalg
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scikits.umfpack import spsolve as spsolve_umf
 import cvxpy as cp
-
 from core.commons import tocDiff
-from core.commons import unit_vector, valuate, deriv_valuate
-from core.commons import rrange
-
+from core.commons import valuate, deriv_valuate
 import gurobipy as gp
 from gurobipy import GRB
 
@@ -38,16 +34,24 @@ class gradient:
         
         self.robust_bound = robust_bound
         
-        self.Da_f = -sparse.identity(M.robust_constraints, format='csc')
-    
-        self.A11 = sparse.identity(len(M.states))
+        A11_row = []
+        A11_col = []
+        A11_val = []
+        
         for s in M.states:
           if not M.is_sink_state(s.id):
             for a in s.actions:
                 if not a.robust:                
                     for ss, p_hat in zip(a.successors, a.model.probabilities):
-                        self.A11[s.id, ss] = -M.discount * s.policy[a.id] * p_hat
+                        
+                        A11_row += [s.id]
+                        A11_col += [ss]
+                        A11_val += [-M.discount * s.policy[int(a.id)] * p_hat]
             
+        A11_plus = sparse.csc_matrix((A11_val, (A11_row, A11_col)), 
+                                     shape=(len(M.states), len(M.states)))
+        self.A11 = sparse.identity(len(M.states)) + A11_plus
+        
         # Define A21
         A21_row = []
         A21_col = []
@@ -107,7 +111,6 @@ class gradient:
         self.A23 = sparse.block_diag([np.ones(( n, 1 )) for n in M.robust_pairs_suc.values() ])
     
     
-    
     def update(self, M, CVX, mode):
         
         # Completely remove dual variables lambda and nu
@@ -120,6 +123,8 @@ class gradient:
         # Reduce by removing redundant alpha and lambda dual variables
         elif mode == 'reduce_dual':
             
+            self.Da_f = -sparse.identity(M.robust_constraints, format='csc')
+            
             self.J = sparse.bmat([
                            [ None,      None,                         None,     None,                           self.A11.T, self.A21.T ],
                            [ None,      None,                         None,     self.Da_f[:, CVX.keeplambda],   self.A12.T, self.A22.T ],
@@ -129,6 +134,8 @@ class gradient:
     
         # Solve naively for the full system of equations with all dual variables
         else:        
+    
+            self.Da_f = -sparse.identity(M.robust_constraints, format='csc')        
     
             LaDa_f = sparse.diags(np.concatenate([CVX.alpha_dual[(s,a)] for (s,a) in M.robust_pairs_suc.keys()]))
             diag_f = sparse.diags(np.concatenate([CVX.alpha_primal[(s,a)] for (s,a) in M.robust_pairs_suc.keys()]))        
@@ -218,12 +225,8 @@ class gradient:
         
         if mode == 'remove_dual':
             self.Ju = self.Ju[-self.J.shape[0]:, :]
-            
-        # If we are looking for the upper bound, then flip Ju to get the
-        # derivatives with the correct sign.
-        # if self.robust_bound == 'upper':
-        #     self.Ju = -self.Ju
-       
+
+        
     def solve_inversion(self, CVX):
         
         print('Compute gradients via matrix inversion...')
@@ -361,8 +364,6 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
 
     '''
     
-    print('Compute parameter importance via LP (GurobiPy)...')
-    
     m = gp.Model('CVX')
     if verbose:
         m.Params.OutputFlag = 1
@@ -403,13 +404,11 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     m.optimize()
     
     if slackvar:
-        print('Maximal slack value is {}'.format(np.max(np.abs(slack.X))))
+        print('- Maximal slack value is {}'.format(np.max(np.abs(slack.X))))
     
     # Get the indices of the k parameters showing maximimum derivatives
     K = np.argpartition(y.X, -k)[-k:]
     optimum = m.ObjVal
-    
-    print('')
     
     # If the number of desired parameters >1, then we still need to obtain their values
     if k > 1: 
@@ -419,187 +418,3 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
         Deriv = np.array([optimum])
     
     return K, Deriv
-
-
-
-# def spsolve_gurobi(J, Ju):
-    
-#     m = gp.Model('CVX')
-    
-#     x = m.addMVar(J.shape[1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
-#     m.addConstr(x == -Ju)
-#     m.setObjective(x, GRB.MINIMIZE)
-#     m.optimize()
-    
-#     return x.X
-
-class gradients_cvx:
-    
-    def __init__(self, M, x, alpha, beta, cns, verbose = False):
-        
-        print('\nDefine optimization problem to compute gradients...')
-        
-        # Store variables in object
-        self.x          = x
-        self.alpha      = alpha
-        self.beta       = beta
-        self.cns        = cns
-        
-        # Define primal decision variables
-        self.Vx          = cp.Variable(len(M.states))
-        self.Valpha      = {}
-        self.Vbeta       = {}
-        
-        # Define dual decision variables
-        self.Vlambda     = {}
-        self.Vnu_primal  = cp.Variable(len(M.states))
-        self.Vnu_dual    = {}
-        
-        # Define parameters for the RHS of the system of equations        
-        self.Dtheta_Nabla_L = {}
-        self.Dtheta_h       = cp.Parameter(len(M.states))
-        
-        self.Vcns = {}
-        
-        for s in M.states:
-            if not M.is_sink_state(s.id):
-                for a in s.actions:
-                    if a.robust:
-                        self.Valpha[(s.id, a.id)] = cp.Variable(len(a.model.b))
-                        self.Vbeta[(s.id, a.id)]  = cp.Variable()
-                        
-                        self.Vlambda[(s.id, a.id)] = cp.Variable(len(a.model.b))
-                        self.Vnu_dual[(s.id, a.id)] = cp.Variable(len(a.model.A.T))
-                        
-                        self.Dtheta_Nabla_L[(s.id, a.id)] = cp.Parameter(len(a.model.b))
-        
-        for s in M.states:
-            if verbose:
-                print('\nAdd for state {}'.format(s.id))
-            
-            # 1) Dx h(y,theta).T @ Nabla V^nu = 0
-            # For each state: Vnu_primal of that state, plus the sum of all Vnu_dual
-            # related to that state, equals zero.
-            
-            SUM = 0
-            for (s_pre, a_id, c) in M.poly_pre_state[s.id]:
-                a = M.states_dict[s_pre].actions_dict[a_id]
-                    
-                SUM += self.Vnu_dual[(s_pre, a_id)][c]
-                    
-            for (s_pre, a_id, p) in M.distr_pre_state[s.id]: 
-                   
-                SUM -= M.discount * M.states_dict[s_pre].policy[a_id] * p * self.Vnu_primal[s_pre]
-                    
-            self.Vcns[('g1', s.id)] = self.Vnu_primal[s.id] + SUM == 0
-            
-            if not M.is_sink_state(s.id):
-              for a in s.actions:
-                if a.robust:
-                    # 2)
-                    # Add a vector constraint for each state-action pair
-                    
-                    # For each robust state-action pair: minus Vlambda, plus the
-                    # probability of choosing action a times b vector times Vnu_primal,
-                    # plus the valae of the A matrix times Vnu_dual, equals the
-                    # derivative of that whole thing wrt the parameter
-                    self.Vcns[('g2', s.id, a.id)] = \
-                        - self.Vlambda[(s.id, a.id)] \
-                        + M.discount * s.policy[a.id] * valuate(a.model.b) * self.Vnu_primal[s.id] \
-                        + valuate(a.model.A) @ self.Vnu_dual[(s.id, a.id)] == - self.Dtheta_Nabla_L[(s.id, a.id)]
-                        
-                    # 3)
-                    # Add a scalar constraint for each robust state-action pair
-                    
-                    # For each robust state-action pair: the probability of choosing
-                    # action a times the Vnu_primal variable, plus the sum of Vnu_dual
-                    # over all places where it occurs, is zero.
-                    self.Vcns[('g3', s.id, a.id)] = \
-                        M.discount * s.policy[a.id] * self.Vnu_primal[s.id] + cp.sum(self.Vnu_dual[(s.id, a.id)]) == 0
-                
-                    # 4) For each lambda / alpha vector
-                    
-                    # Lambda-tilde times Valpha == alpha* times Vlambda
-                    lambda_alpha = cp.multiply(self.cns[('ineq', s.id, a.id)].dual_value, self.Valpha[(s.id, a.id)])
-                    alpha_lambda = cp.multiply(self.alpha[(s.id, a.id)].value, self.Vlambda[(s.id, a.id)])
-                    self.Vcns[('g4', s.id, a.id)] = (lambda_alpha == alpha_lambda)
-                        
-                    del lambda_alpha
-                    del alpha_lambda
-                    
-                    # 5b) For each dual equality constraint, replace original decision
-                    # variables with the ones of the sensitivity problem
-                    self.Vcns[('g5b', s.id, a.id)] = \
-                        a.model.A.T @ self.Valpha[(s.id, a.id)] + self.Vx[a.successors] + self.Vbeta[(s.id, a.id)] == 0
-                        
-            # 5a) For each reward equality constraint, replace original decision
-            # variables with the ones of the sensitivity problem
-            if M.is_sink_state(s.id):
-                if verbose:
-                    print('-- State {} is terminal'.format(s.id))
-                
-                # If state is terminal, sensitivity is zero
-                self.Vcns[('g5a', s.id)] = \
-                    self.Vx[s.id] == 0
-            
-            else:
-                SUM = 0
-                
-                # For each action in the policy at this state
-                for a in s.actions:
-                    
-                    if verbose:
-                        print('-- Add action {} with probability {:.3f}'.format(a.id, s.policy[a.id]))
-                    
-                    if a.robust:
-                        
-                        if verbose:
-                            print('--- Robust action')
-                        SUM += s.policy[a.id] * (valuate(a.model.b) @ self.Valpha[(s.id, a.id)] + self.Vbeta[(s.id, a.id)])
-                
-                    else:
-                        
-                        if verbose:
-                            print('--- Nonrobust action')
-                        SUM -= s.policy[a.id] * (a.model.probabilities @ self.Vx[a.model.states])
-                        
-                self.Vcns[('g5a', s.id)] = self.Vx[s.id] + M.discount*SUM == -self.Dtheta_h[s.id]
-                    
-        print('Build optimization problem...')
-        self.sens_prob = cp.Problem(objective = cp.Minimize(0), constraints = self.Vcns.values())
-              
-        if self.sens_prob.is_dcp(dpp=True):
-            print('Program satisfies DCP rule set')
-        else:
-            print('Program does not satisfy DCP rule set')
-    
-    def solve(self, M, theta, solver = 'SCS'):
-        
-        print('\nSet parameter values...')
-        
-        # Set entries depending on the parameter theta
-        Dtheta_h = np.zeros(len(M.states))
-        
-        for s in M.states:
-            if not M.is_sink_state(s.id):
-                
-                for a in s.actions:                    
-                    if a.robust:
-                        Dtheta_h[s.id] += M.discount * s.policy[a.id] * deriv_valuate(a.model.b, theta) @ self.alpha[(s.id, a.id)].value
-                    
-                        self.Dtheta_Nabla_L[(s.id, a.id)].value = \
-                            M.discount * s.policy[a.id] * deriv_valuate(a.model.b, theta) * self.cns[s.id].dual_value
-              
-        self.Dtheta_h.value = Dtheta_h          
-             
-        print('\nSolve sensitivity program...')
-        
-        # Solve optimization problem
-        if solver == 'GUROBI':
-            self.sens_prob.solve(solver='GUROBI')
-        else:
-            self.sens_prob.solve(solver='SCS')
-            
-        print('Status of computing gradients:', self.sens_prob.status)
-        
-        return self.Vx

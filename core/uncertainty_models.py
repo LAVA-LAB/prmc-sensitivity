@@ -2,7 +2,7 @@
 
 import numpy as np
 import itertools
-from core.poly import poly
+from core.polynomial import polynomial
 
 def Linf_polytope(center, size):
     
@@ -25,8 +25,8 @@ def Linf_polytope(center, size):
     b = np.zeros((2*n), dtype=object)
     
     for d in range(n):
-        b[2*d]   = poly(param = size, coeff = [-np.round(center[d], 3), 1], power = [0, 1])
-        b[2*d+1] = poly(param = size, coeff = [ np.round(center[d], 3), 1], power = [0, 1])
+        b[2*d]   = polynomial(param = size, coeff = [-center[d], 1], power = [0, 1])
+        b[2*d+1] = polynomial(param = size, coeff = [ center[d], 1], power = [0, 1])
         
     return A,b
 
@@ -55,10 +55,10 @@ def Hoeffding_interval(center, confidence, parameter, min_probability):
     epsilon = alpha * np.sqrt(1/parameter.value)
     
     for d in range(n):
-        print('Interval for {} is [{}, {}]'.format(parameter, center[d]-epsilon, center[d]+epsilon))
+        # print('Interval for {} is [{}, {}]'.format(parameter, center[d]-epsilon, center[d]+epsilon))
         
-        b[2*d]   = poly(param = parameter, coeff = [-center[d], alpha], power = [0, -0.5])
-        b[2*d+1] = poly(param = parameter, coeff = [ center[d], alpha], power = [0, -0.5])
+        b[2*d]   = polynomial(param = parameter, coeff = [-center[d], alpha], power = [0, -0.5])
+        b[2*d+1] = polynomial(param = parameter, coeff = [ center[d], alpha], power = [0, -0.5])
         
         # Check if probability interval goes beyond [0,1] interval
         if center[d] + epsilon > 1:
@@ -117,6 +117,6 @@ def L1_polytope(center, size):
         A[i] = v
         
         # Define b vector as a polytope object 
-        b[i] = poly(param = size, coeff = [v @ center, 1], power = [0, 1])
+        b[i] = polynomial(param = size, coeff = [v @ center, 1], power = [0, 1])
             
     return A,b

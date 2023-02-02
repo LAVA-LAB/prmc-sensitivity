@@ -1,22 +1,23 @@
-from models.pmdp import pMDP, get_pmdp_reward_vector, verify_pmdp_storm
+from core.classes import PMC
 from core.sensitivity import solve_cvx_gurobi
-from core.pMC_LP import define_sparse_LHS, define_sparse_RHS
+from core.baseline_gradient import explicit_gradient
+from core.export import export_json
+
 import numpy as np
 import scipy.sparse as sparse
-import os
 import time
-from pathlib import Path
-from datetime import datetime
 from gurobipy import GRB
 import random
+import stormpy
+import sys
 
-def run_pmc(args, model_path, param_path):
+def run_pmc(args, model_path, param_path, verbose):
     
     T = {}
     
     start_time = time.time()
     
-    pmc = pMDP(model_path = model_path, args = args, )
+    pmc = PMC(model_path = model_path, args = args, )
     
     inst = {}
     
@@ -27,7 +28,7 @@ def run_pmc(args, model_path, param_path):
 
     ### Verify model
 
-    print('Start defining J...')
+    print('Model checking pMC...')
 
     start_time = time.time()
     instantiated_model, inst['point'] = pmc.instantiate(inst['valuation'])
@@ -37,8 +38,15 @@ def run_pmc(args, model_path, param_path):
     start_time = time.time()
     J, subpoint  = define_sparse_LHS(pmc.model, inst['point'])
     T['build_matrices'] = time.time() - start_time
+    
+    if args.goal_label is not None:
+        pmc.reward = get_pmdp_reward_from_label(pmc.model, args.goal_label)
+    else:
+        pmc.reward = get_pmdp_reward_vector(pmc.model, inst['point'])
 
-    pmc.reward = get_pmdp_reward_vector(pmc.model, inst['point'])
+    # If we want to skip pMC derivative computation, return here
+    if args.no_pMC:
+        return pmc, T, inst, None, None
 
     # Solve pMC (either use Storm, or simply solve equation system)
     start_time = time.time()
@@ -53,7 +61,6 @@ def run_pmc(args, model_path, param_path):
     print('Range of solutions: [{}, {}]'.format(np.min(result), np.max(result)))
     print('Solution in initial state: {}\n'.format(result[pmc.sI['s']] @ pmc.sI['p']))
 
-    print('Start defining Ju...')
     start_time = time.time()
     Ju = define_sparse_RHS(pmc.model, pmc.parameters, params2states, result, subpoint)
     T['build_matrices'] += time.time() - start_time
@@ -65,42 +72,30 @@ def run_pmc(args, model_path, param_path):
 
     deriv = {}
 
-    print('\n--------------------------------------------------------------')
-    print('Solve LP using Gurobi...')
+    print('Compute parameter importance via LP (GurobiPy)...')
     start_time = time.time()
 
     deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(J, Ju, pmc.sI, args.num_deriv,
-                                        direction=GRB.MAXIMIZE, verbose=False)
+                                        direction=GRB.MAXIMIZE, verbose=verbose)
+
+    deriv['LP_pars'] = pmc.parameters[ deriv['LP_idxs']][0].name
 
     T['solve_LP'] = time.time() - start_time   
     print('- LP solved in: {:.3f} sec.'.format(T['solve_LP']))
-    print('--------------------------------------------------------------\n')
+    print('- Obtained derivatives are {} for parameters {}'.format(deriv['LP'],  deriv['LP_pars']))
 
-    ### Baseline of computing parameters explicitly
     if args.explicit_baseline:
+        print('-- Execute baseline: compute all gradients explicitly')
         
-        start_time = time.time()
-        
-        # Select N random parameters
-        idxs = np.arange(len(pmc.parameters))
-        random.shuffle(idxs)
-        sample_idxs = idxs[:min(len(pmc.parameters), 100)]
-        
-        deriv['explicit'] = np.zeros(len(sample_idxs), dtype=float)
-        
-        for i,(q,x) in enumerate(zip(sample_idxs, pmc.parameters[sample_idxs])):
+        deriv['explicit'], T['solve_explicit_one'], T['solve_explicit_all'] = \
+            explicit_gradient(pmc, args, J, Ju)
             
-            deriv['explicit'][i] = sparse.linalg.spsolve(J, -Ju[:,q])[pmc.sI['s']] @ pmc.sI['p']
-            
-        T['solve_explicit_one'] = (time.time() - start_time) / len(sample_idxs)
-        T['solve_explicit_all'] = T['solve_explicit_one'] * len(pmc.parameters)
-
     # Empirical validation of gradients
     solution = result[pmc.sI['s']] @ pmc.sI['p']
     
     if not args.no_gradient_validation:
 
-        print('\nValidate derivatives with delta of {}'.format(args.validate_delta))
+        print('\nValidation by perturbing parameters by +{}'.format(args.validate_delta))
         
         deriv['validate'] = np.zeros(args.num_deriv, dtype=float)
         deriv['RelDiff']  = np.zeros(args.num_deriv, dtype=float)
@@ -120,9 +115,9 @@ def run_pmc(args, model_path, param_path):
                 
             else:
                 # print('- Verify by solving sparse equation system...')
-                R = get_pmdp_reward_vector(pmc.model, point)
+                # R = get_pmdp_reward_vector(pmc.model, point)
                 J_delta, subpoint  = define_sparse_LHS(pmc.model, point)
-                result = sparse.linalg.spsolve(J_delta, R)
+                result = sparse.linalg.spsolve(J_delta, pmc.reward)
                 
             # Extract solution
             solution_new = result[pmc.sI['s']] @ pmc.sI['p']
@@ -131,65 +126,132 @@ def run_pmc(args, model_path, param_path):
             deriv['validate'][q] = (solution_new-solution) / args.validate_delta
             
             # Determine difference in %
-            deriv['RelDiff'][q] = (deriv['validate'][q]-deriv['LP'][q])/deriv['LP'][q]
+            if deriv['LP'][q] != 0:
+                deriv['RelDiff'][q] = (deriv['validate'][q]-deriv['LP'][q])/deriv['LP'][q]
             
-            print('-- Parameter {}, LP: {:.3f}, val: {:.3f}, diff: {:.3f}'.format(x,  deriv['validate'][q], deriv['LP'][q], deriv['RelDiff'][q]))
+            print('- Parameter {}, LP: {:.3f}, val: {:.3f}, diff: {:.3f}'.format(x,  deriv['validate'][q], deriv['LP'][q], deriv['RelDiff'][q]))
             
             inst['valuation'][x.name] -= args.validate_delta
             
-        return pmc, T, inst, solution, deriv
-
-def export_pmc(args, pmc, T, inst, solution, deriv):
-
-    # Export results
     if not args.no_export:
-        print('\n- Export results...')
-
-        import json
-        
-        OUT = {
-               'instance': args.model if not args.instance else args.instance,
-               'Type': 'prMC',
-               'Formula': args.formula,
-               'Engine': args.pMC_engine,
-               'States': pmc.model.nr_states,
-               'Transitions': pmc.model.nr_transitions,
-               'Parameters': len(inst['valuation']),
-               #
-               'Solution': np.round(solution, 6),
-               'Model parse [s]': np.round(T['parse_model'], 6),
-               'Model instantiate [s]': np.round(T['instantiate'], 6),
-               'Model verify [s]': np.round(T['verify'], 6),
-               #
-               'Num. derivatives': args.num_deriv
-               }
-        
-        if args.explicit_baseline:
-            OUT['Differentiate one [s]'] = np.round(T['solve_explicit_one'], 6)
-            OUT['Differentiate explicitly [s]'] = np.round(T['time_solve_explicit_all'], 3)
-        
-        OUT['LP (define matrices) [s]'] = np.round(T['build_matrices'], 6)
-        OUT['LP (solve) [s]'] = np.round(T['solve_LP'], 6)
-        
-        if args.num_deriv > 1:
-            OUT['Max. derivatives'] = list(np.round(deriv['LP'], 6))
-            OUT['Argmax. derivatives'] = [p.name for p in pmc.parameters[ deriv['LP_idxs']]]
-            OUT['Max. validation'] = list(np.round(deriv['validate'], 6))
-            OUT['Difference %'] = list(np.round(deriv['RelDiff'], 6))
+        export_json(args, pmc, T, inst, solution, deriv)
             
-        else:
-            OUT['Max. derivatives'] = np.round(deriv['LP'][0], 6)
-            OUT['Argmax. derivatives'] = pmc.parameters[ deriv['LP_idxs']][0].name
-            OUT['Max. validation'] = np.round(deriv['validate'][0], 6)
-            OUT['Difference %'] = np.round(deriv['RelDiff'][0], 6)
+    return pmc, T, inst, solution, deriv
+
+
+
+def get_pmdp_reward_from_label(model, label):
+    
+    R = np.zeros(len(model.states))
+    
+    all_labels = set({})
+    
+    for s in model.states:
+        all_labels.update(model.labels_state(s.id))
+        if label in model.labels_state(s.id):
+            R[s.id] = 1
+            
+    # print(all_labels)
+    # assert False
+    
+    return R
+
+
+
+def get_pmdp_reward_vector(model, point):
+    
+    reward_model = next(iter(model.reward_models.values()))
+    R = np.zeros(len(model.states))
+    
+    for s in model.states:
+        if not model.is_sink_state(s):
+            if reward_model.has_state_rewards:
+                R[s.id] = float(reward_model.get_state_reward(s.id).evaluate(point))
+            elif reward_model.has_state_action_rewards:
+                R[s.id] = float(reward_model.get_state_action_reward(s.id).evaluate(point))
+            else:
+                sys.exit()
+                
+    return R
+
+
+
+def verify_pmdp_storm(instantiated_model, properties):
+    
+    # Compute model checking result
+    result = stormpy.model_checking(instantiated_model, properties[0])
+    array  = np.array(result.get_values(), dtype=float)
+
+    return array
+
+
+
+def define_sparse_LHS(model, point):
+
+    subpoint = {}    
+    
+    row = []
+    col = []
+    val = []
+    
+    for state in model.states:
+        for action in state.actions:
+            for transition in action.transitions:
+                
+                ID = (state.id, action.id, transition.column)
+                
+                # Gather variables related to this transition
+                var = transition.value().gather_variables()
+                
+                # Get valuation for only those parameters
+                subpoint[ID] = {v: point[v] for v in var}
+                
+                if not model.is_sink_state(state.id):
+                
+                    value = float(transition.value().evaluate(subpoint[ID]))
+                    if value != 0:
+                
+                        # Add to sparse matrix
+                        row += [state.id]
+                        col += [transition.column]
+                        val += [value]
         
-        output_path = Path(args.root_dir, args.output_folder)
-        if not os.path.exists(output_path):
+    # Create sparse matrix for left-hand side
+    J = sparse.identity(len(model.states)) - sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(model.states)))
+    
+    return J, subpoint
+    
+
+
+def define_sparse_RHS(model, parameters, params2states, sols, subpoint):
+    
+    row = []
+    col = []
+    val = []
+    
+    for q,p in enumerate(parameters):
         
-           # Create a new directory because it does not exist
-           os.makedirs(output_path)
-        
-        dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
-        out_file = os.path.join(args.output_folder, Path(args.model).stem + dt + '.json')
-        with open(str(Path(args.root_dir, out_file)), "w") as outfile:
-            json.dump(OUT, outfile)
+        for state in params2states[p]:
+            
+            # If the value in this state is zero, we can skip it anyways
+            if sols[state.id] != 0:        
+                for action in state.actions:
+                    cur_val = 0
+                    
+                    for transition in action.transitions:
+                        
+                        ID = (state.id, action.id, transition.column)
+                        
+                        value = float(transition.value().derive(p).evaluate(subpoint[ID]))
+                        
+                        cur_val += value * sols[transition.column]
+                        
+                    if cur_val != 0:
+                        row += [state.id]
+                        col += [q]
+                        val += [cur_val]
+                 
+    # Create sparse matrix for right-hand side
+    Ju = -sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(parameters)))
+    
+    return Ju

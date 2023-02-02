@@ -239,7 +239,7 @@ def xyz_to_plain_state(x,y,z,X,Y):
     return s
 
 def gen_pMDP_random_drn(N, terrain, model_name,
-                        loc_package, loc_warehouse, reward):
+                        loc_package, loc_warehouse, reward, slipmode='fix'):
     
     '''
     Generates a parametric DTMC for the grid world example of arbitrary size,
@@ -251,6 +251,7 @@ def gen_pMDP_random_drn(N, terrain, model_name,
     
     # Determine size of the grid
     (Y,X) = terrain.shape  
+    (x_init, y_init) = (0,0)
 
     # Note: first element is y, second element is x
     dct = {'east':  (0,  1),
@@ -279,7 +280,7 @@ def gen_pMDP_random_drn(N, terrain, model_name,
         for y,row in enumerate(terrain):
             for x,ter in enumerate(row):
             
-                if x == 0 and y == 0 and z == 0:
+                if x == x_init and y == y_init and z == 0:
                     label = 'init'
                     
                 elif (x,y) == loc_warehouse and z == 1:
@@ -305,45 +306,147 @@ def gen_pMDP_random_drn(N, terrain, model_name,
                     
                 else:
                     
-                    # Check how many moves we can make in this state (x,y)
-                    moves = 0
-                    if x > 0:
-                        moves += 1
-                    if y > 0:
-                        moves += 1
-                    if x < X-1:
-                        moves += 1
-                    if y < Y-1:
-                        moves += 1
+                    #####
                     
-                    # Slipping
-                    Q += ['\t\t{} : v{}'.format(s, ter)]
-                
-                    # Iterate over possible moves
-                    for lab, move in dct.items():
+                    
+                    # Slip = remain on same locatoin
+                    if slipmode == 'fix':
                         
-                        # Compute new position
-                        x_new = x + move[1]
-                        y_new = y + move[0]
+                        # Check how many moves we can make in this state (x,y)
+                        moves = 0
+                        if x > 0:
+                            moves += 1
+                        if y > 0:
+                            moves += 1
+                        if x < X-1:
+                            moves += 1
+                        if y < Y-1:
+                            moves += 1
                         
-                        # Check if out of bounds
-                        if x_new < 0 or x_new >= X:
-                            continue
-                        if y_new < 0 or y_new >= Y:
-                            continue
-                        
-                        # Check if we have reached the package
-                        if (x_new, y_new) == loc_package:
-                            z_new = 1
-                        else:
-                            z_new = z
+                        # Slipping
+                        Q += ['\t\t{} : v{}'.format(s, ter)]
+                    
+                        # Iterate over possible moves
+                        for lab, move in dct.items():
                             
-                        s_new = xyz_to_plain_state(x_new, y_new, z_new, X, Y)        
+                            # Compute new position
+                            x_new = x + move[1]
+                            y_new = y + move[0]
+                            
+                            # Check if out of bounds
+                            if x_new < 0 or x_new >= X:
+                                continue
+                            if y_new < 0 or y_new >= Y:
+                                continue
+                            
+                            # Check if we have reached the package
+                            if (x_new, y_new) == loc_package:
+                                z_new = 1
+                            else:
+                                z_new = z
+                                
+                            s_new = xyz_to_plain_state(x_new, y_new, z_new, X, Y)        
+                            
+                            if s_new > s_package:
+                                s_new -= 1
+                            
+                            Q += ['\t\t{} : 1/{}*(1-v{})'.format(s_new, int(moves), ter)]
+                           
+                            
+                    # Slip = move two places instead of one
+                    elif slipmode == 'double':
                         
-                        if s_new > s_package:
-                            s_new -= 1
+                        # In this case, only move right/down and wrap around
+                        # if the agent goes out of bounds.
                         
-                        Q += ['\t\t{} : 1/{}*(1-v{})'.format(s_new, int(moves), ter)]
+                        moves = 2
+                        Q_sub = {}
+                        
+                        # Iterate over possible moves
+                        for lab, move in dct.items():
+                            
+                            # Only move right/down
+                            if lab in ['west', 'north']:
+                                continue
+                            
+                            # Only slip when moving down
+                            if lab == 'south':
+                                slip = True
+                            else:
+                                slip = False
+                            
+                            ### Normal move
+                            # Compute new position
+                            x_new = x + move[1]
+                            y_new = y + move[0]
+                            
+                            # If out of bounds, wrap around
+                            if x_new < 0:
+                                x_new += X
+                            elif x_new >= X:
+                                x_new -= X
+                                
+                            if y_new < 0:
+                                y_new += Y
+                            elif y_new >= Y:
+                                y_new -= Y
+                            
+                            # Check if we have reached the package
+                            if (x_new, y_new) == loc_package:
+                                z_new = 1
+                            else:
+                                z_new = z
+                                
+                            s_new = xyz_to_plain_state(x_new, y_new, z_new, X, Y)        
+                            
+                            if s_new > s_package:
+                                s_new -= 1
+                            
+                            if slip:
+                                Q_sub[s_new] = '\t\t{} : 1/{}*(1-v{})'.format(s_new, int(moves), ter)
+                            else:
+                                Q_sub[s_new] = '\t\t{} : 1/{}'.format(s_new, int(moves))
+                        
+                            # Slipping move
+                            # Compute new position
+                            x_slip = x + int(move[1] * 2)
+                            y_slip = y + int(move[0] * 2)
+                            
+                            # Check if out of bounds
+                            if x_slip < 0:
+                                x_slip += X
+                            elif x_slip >= X:
+                                x_slip -= X
+                                
+                            if y_slip < 0:
+                                y_slip += Y
+                            elif y_slip >= Y:
+                                y_slip -= Y
+                            
+                            # Check if we have reached the package
+                            if (x_slip, y_slip) == loc_package:
+                                z_slip = 1
+                            else:
+                                z_slip = z
+                                
+                            s_slip = xyz_to_plain_state(x_slip, y_slip, z_slip, X, Y)        
+                            
+                            if s_slip > s_package:
+                                s_slip -= 1
+                            
+                            if slip:
+                                Q_sub[s_slip] = '\t\t{} : 1/{}*(v{})'.format(s_slip, int(moves), ter)
+                            else:
+                                Q_sub[s_new] = '\t\t{} : 1/{}'.format(s_new, int(moves))
+                        
+                        for key in np.sort(list(Q_sub.keys())):
+                            Q += [Q_sub[key]]
+                           
+                    else:
+                        print('Unknown slip mode. Exit.')
+                        assert False
+                        
+                    
                     
     drn_path   = str(Path(ROOT_DIR, str(model_name)+'.drn'))
     
@@ -373,7 +476,7 @@ terrain = np.array([
 
 # Set slipping probabilities (v1 corresponds with terrin type 1)
 slipping_probabilities = {
-    'v1': 0.40,
+    'v1': 0.25,
     'v2': 0.40,
     'v3': 0.45,
     'v4': 0.50,
@@ -382,32 +485,12 @@ slipping_probabilities = {
 
 # Generate rough estimate of the slipping probabilities
 N = {
-     'v1': 12*2,
+     'v1': 12,
      'v2': 18*2,
      'v3': 15*2,
      'v4': 30*2,
      'v5': 11*2
      }
-'''
-
-# Set slipping probabilities (v1 corresponds with terrin type 1)
-slipping_probabilities = {
-    'v1': 0.1,
-    'v2': 0.5,
-    'v3': 0.4,
-    'v4': 0.2,
-    'v5': 0.3
-    }
-
-# Generate rough estimate of the slipping probabilities
-N = {
-     'v1': 12,
-     'v2': 18,
-     'v3': 15,
-     'v4': 30,
-     'v5': 9
-     }
-'''
 
 # 0 = right, 1 = down, 2 = left, 3 = up
 # Policy before the package has been picked up
@@ -441,14 +524,13 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 ##########################################
 # Generate other, random slipgrids
 
-grid_size = [5] #[50,100,150] #[50,200,800]
-no_params = [20] #[100,1000,10000] #[1000,10000,100000]
-p_range = [0.01, 0.02]
+grid_size = [800] #[10, 25, 50, 100, 200, 400, 800] #[50,200,800]
+no_params = [100000] #[10, 100, 1000, 10000, 100000] #[1000,10000,100000]
+p_range = [0.10, 0.20]
 
 # Number of parameters to estimate probabilities with
-Nmin = 50
-Nmax = 300
-N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=no_params), dtype=int)
+Nmin = 500
+Nmax = 1000
 
 ITERS = 1
 
@@ -456,69 +538,77 @@ BASH_FILE = ["#!/bin/bash",
              "cd ..;",
              'echo -e "START GRID WORLD EXPERIMENTS...";']
 
-num_derivs = 10
+num_derivs = 1
 
 for Z in grid_size:
   for V in no_params:
-    for seed in range(ITERS):
-                
-        np.random.seed(0)
-                
-        model_name = "models/slipgrid/pmc_size={}_params={}_seed={}".format(Z,V,seed)
-        
-        # By default, put package in top right corner and warehouse in bottom left
-        loc_package   = (Z-2, 1)
-        loc_warehouse = (1, Z-2)
-        
-        if V > Z**2:
-            print('Skip configuration, because no. params exceed no. states.')
-            continue
-        
-        # Set ID's of terrain types
-        terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
-        
-        # Set slipping probabilities (v1 corresponds with terrin type 1)
-        slipping_probabilities = {
-            'v'+str(i): np.random.uniform(p_range[0], p_range[1]) for i in range(V)
-            }
-        
-        # Minimum transition probability estimate
-        delta = 1e-4
-        
-        # Obtain point estimates for each of the transition probabilities
-        slipping_estimates = {}
-        for i,(v,p) in enumerate(slipping_probabilities.items()):
+    for mode in ['fix', 'double']:
+      
+        N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
+          
+        for seed in range(ITERS):
+                    
+            np.random.seed(0)
+                    
+            model_name = "models/slipgrid/{}_pmc_size={}_params={}_seed={}".format(mode,Z,V,seed)
             
-            slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), float(N[i])]
-           
-        json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
-        with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
-            json.dump(slipping_probabilities, fp)
+            # By default, put package in top right corner and warehouse in bottom left
+            loc_package   = (Z-2, 1)
+            loc_warehouse = (1, Z-2)
             
-        with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
-            json.dump(slipping_estimates, fp)
-        
-        # Scale reward with the size of the grid world
-        reward = 10**(-math.floor(math.log(Z**2, 10)))
-        
-        path = gen_pMDP_random(
-            terrain, model_name, loc_package, loc_warehouse, reward, nodrn=True)
-        
-        drn_path = gen_pMDP_random_drn(N, terrain, model_name,
-                                loc_package, loc_warehouse, reward)
-        
-        command = ["python3 run_pmc.py",
-                   '--instance "grid({},{})"'.format(Z,V),
-                   "--model '{}'".format(drn_path),
-                   "--parameters '{}'".format(json_path),
-                   "--formula 'Rmin=? [F \"goal\"]'",
-                   "--pMC_engine 'spsolve'",
-                   "--validate_delta 1e-6",
-                   "--output_folder 'output/slipgrid/'",
-                   "--num_deriv {}".format(num_derivs),
-                   "--explicit_baseline;"]
-        
-        BASH_FILE += [" ".join(command)]
+            if V > Z**2:
+                print('Skip configuration, because no. params exceed no. states.')
+                continue
+            
+            # Set ID's of terrain types
+            terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
+            
+            # Set slipping probabilities (v1 corresponds with terrin type 1)
+            slipping_probabilities = {
+                'v'+str(i): np.random.uniform(p_range[0], p_range[1]) for i in range(V)
+                }
+            
+            # Minimum transition probability estimate
+            delta = 1e-4
+            
+            # Obtain point estimates for each of the transition probabilities
+            slipping_estimates = {}
+            for i,(v,p) in enumerate(slipping_probabilities.items()):
+                
+                slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), int(N[i])]
+               
+            json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
+            with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+                json.dump(slipping_probabilities, fp)
+                
+            json_mle_path  = str(Path(ROOT_DIR, str(model_name)+'_mle.json'))
+            with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+                json.dump(slipping_estimates, fp)
+            
+            # Scale reward with the size of the grid world
+            reward = 10**(-math.floor(math.log(Z**2, 10)))
+            
+            path = gen_pMDP_random(
+                terrain, model_name, loc_package, loc_warehouse, reward, nodrn=True)
+            
+            drn_path = gen_pMDP_random_drn(N, terrain, model_name,
+                                    loc_package, loc_warehouse, reward, slipmode = mode)
+            
+            command = ["python3 run_cav23.py",
+                       '--instance "grid({},{})"'.format(Z,V),
+                       "--model '{}'".format(drn_path),
+                       "--parameters '{}'".format(json_mle_path),
+                       "--formula 'Rmin=? [F \"goal\"]'",
+                       "--pMC_engine 'spsolve'",
+                       "--validate_delta 1e-4",
+                       "--output_folder 'output/slipgrid/'",
+                       "--num_deriv {}".format(num_derivs),
+                       "--explicit_baseline",
+                       "--robust_bound 'lower'",
+                       "--no_prMC",
+                       "--scale_reward;"]
+            
+            BASH_FILE += [" ".join(command)]
         
 BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
         

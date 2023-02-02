@@ -1,7 +1,7 @@
 import cvxpy as cp
 import numpy as np
 
-class poly(object):
+class polynomial(object):
     
     def __init__(self, param, coeff, power):
         '''
@@ -16,15 +16,7 @@ class poly(object):
         
         self.par = param
         self.coeff = coeff
-        self.power = power
-        
-#         if type(coeff) == dict:
-#             self.coeff = [0]*(max(coeff.keys())+1)
-#             for k,v in coeff.items():
-#                 self.coeff[k] = v
-#         else:
-# 	        self.coeff = coeff
-                
+        self.power = power                
         self.par  = param
     
     def __str__(self):
@@ -50,6 +42,8 @@ class poly(object):
         
         return ' + '.join(print_list)
     
+    
+    
     def deriv_eval(self, param):
         # Differentiate polynomial and return the value evaluated at the 
         # current parameter value
@@ -58,13 +52,12 @@ class poly(object):
         if param.id == self.par.id:
         
             return sum([c * p * self.par.value ** (p-1) if p != 0 else 0 for p,c in zip(self.power, self.coeff)])    
-        
-            # coeff_der = np.polynomial.polynomial.polyder(self.coeff)
-            # return sum([c * self.par.value ** p for p,c in enumerate(coeff_der)])
     
         # If the IDs don't match, then the derivative is zero by default
         else:
             return 0
+    
+    
     
     def expr(self):
         # Evaluate the polynomial to get the CVXPY expression
@@ -81,8 +74,8 @@ class poly(object):
                 expr += self.par ** p
                 
         return expr
-        
-        # return cp.sum([c * self.par ** i for i,c in enumerate(self.coeff)])
+    
+    
     
     def val(self):
         # Evaluate the polynomial and return the value evaluated at the 
@@ -91,29 +84,3 @@ class poly(object):
         val = cp.sum([c * self.par.value ** p for p,c in zip(self.power, self.coeff)])
         
         return val
-    
-    
-
-# class polytope(object):
-    
-#     def __init__(self, A, b):
-        
-#         self.A = A
-#         self.b = b
-        
-#     def showA(self):
-        
-#         string = np.vectorize(lambda x: x.print() if isinstance(x, poly) else str(x), 
-#                              otypes=[str])
-        
-#         return string(self.A)
-        
-#     def dA_eval(self):
-#         # Differentiate A matrix and return the value evaluated at the 
-#         # current parameter value
-        
-#         dA = np.array([[
-            
-#             ]])
-        
-#         return 

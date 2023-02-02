@@ -35,9 +35,13 @@ def parse_inputs(manualModel=None):
     parser.add_argument('--formula', type=str, action="store", dest='formula', 
                         default=None, help="Formula to verify")
     
+    parser.add_argument('--goal_label', type=str, action="store", dest='goal_label', 
+                        default=None, help="For reachability probabilities, the label of the goal states (currently only support single label)")
+    
     # Type of uncertainty model fo use
     parser.add_argument('--uncertainty_model', type=str, action="store", dest='uncertainty_model', 
                         default='Linf', help="Type of uncertainty model (Linf, L1, ...)")
+    
     parser.add_argument('--uncertainty_size', type=float, action="store", dest='uncertainty_size', 
                         default=0.05, help="Size of the uncertainty set")
     
@@ -51,9 +55,21 @@ def parse_inputs(manualModel=None):
     parser.add_argument('--default_valuation', type=float, action="store", dest='default_valuation', 
                         default=0.5, help="Default parameter valuation")
     
+    parser.add_argument('--scale_reward', dest='scale_reward', action='store_true',
+                        help="If True, rewards for prMC are normalized to one.")
+    parser.set_defaults(scale_reward=False)
     
     
-    ### PROGRAM SETTINGS ###    
+    
+    ### PROGRAM SETTINGS ###  
+    parser.add_argument('--no_prMC', dest='no_prMC', action='store_true',
+                        help="If True, prMC execution is skipped")
+    parser.set_defaults(no_prMC=False)
+    
+    parser.add_argument('--no_pMC', dest='no_pMC', action='store_true',
+                        help="If True, pMC execution is skipped")
+    parser.set_defaults(no_pMC=False)
+    
     parser.add_argument('--pMC_engine', type=str, action="store", dest='pMC_engine', 
                         default='spsolve', help="Engine to solve pMCs with")
     
@@ -86,7 +102,7 @@ def parse_inputs(manualModel=None):
     parser.set_defaults(validate_gradients=False)
     
     parser.add_argument('--validate_delta', type=float, action="store", dest='validate_delta', 
-                        default=1e-3, help="Step ")
+                        default=1e-3, help="Perturbation value to validate gradients")
     
     parser.add_argument('--explicit_baseline', dest='explicit_baseline', action='store_true',
                         help="Perform baseline, which computes all derivatives explicitly")
@@ -96,8 +112,11 @@ def parse_inputs(manualModel=None):
                         help="If provided, validation of computed derivatives (gradient) is skipped")
     parser.set_defaults(no_gradient_validation=False)
     
+    parser.add_argument('--robust_bound', type=str, action="store", dest='robust_bound', 
+                        default='lower', help="Either 'upper' or 'lower' robust bound")    
     
-    
+    parser.add_argument('--robust_confidence', type=float, action="store", dest='robust_confidence', 
+                        default=0.9, help="Confidence level on individual PAC probability intervals")
     
     # Now, parse the command line arguments and store the
     # values in the `args` variable
@@ -106,5 +125,7 @@ def parse_inputs(manualModel=None):
     assert args.uncertainty_model in ['Linf', 'L1']
     
     assert args.pMC_engine in ['storm', 'spsolve']
+    
+    assert args.robust_bound in ['upper', 'lower']
     
     return args
