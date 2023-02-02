@@ -7,6 +7,8 @@ import os
 import math
 from pathlib import Path
 
+from datetime import datetime
+
 # Load PRISM model with STORM
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -554,8 +556,10 @@ BASH_FILE = ["#!/bin/bash",
 
 num_derivs = 1
 
+dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
+
 for (Z,V) in cases:
-    for mode in ['fix', 'double']:
+    for mode in ['double']:
       
         N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
           
@@ -608,13 +612,13 @@ for (Z,V) in cases:
                                     loc_package, loc_warehouse, reward, slipmode = mode)
             
             command = ["timeout 3600s python3 run_cav23.py",
-                       '--instance "grid({},{})"'.format(Z,V),
+                       '--instance "grid({},{},{})"'.format(Z,V,mode),
                        "--model '{}'".format(drn_path),
                        "--parameters '{}'".format(json_mle_path),
                        "--formula 'Rmin=? [F \"goal\"]'",
                        "--pMC_engine 'spsolve'",
                        "--validate_delta -0.001",
-                       "--output_folder 'output/slipgrid/'",
+                       "--output_folder 'output/slipgrid_{}/'".format(dt),
                        "--num_deriv {}".format(num_derivs),
                        "--explicit_baseline",
                        "--robust_bound 'lower'",
@@ -625,7 +629,7 @@ for (Z,V) in cases:
             
             BASH_FILE += [" ".join(command)+";"]
         
-BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
+BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid_{}/' --table_name 'tables/slipgrid_table_{}'".format(dt, dt)]
         
 # Export bash file to perform grid world experiments
 with open(str(Path(ROOT_DIR,'experiments/grid_world.sh')), 'w') as f:
