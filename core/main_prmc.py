@@ -58,12 +58,12 @@ def run_prmc(pmc, args, inst, verbose):
             if trials < trials_max:
                 trials += 1
                 
-                prmc.beta_penalty *= 10
+                prmc.beta_penalty *= 100
                 solver_verbose = True
                 print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...\n'.format(prmc.beta_penalty, trials_max-trials))
                 
                 print('- Add small delta to reward vector to break symmetry...')
-                pmc.reward += 1e-2*np.random.rand(len(pmc.reward))
+                pmc.reward += 1e-1*np.random.rand(len(pmc.reward))
                 
             else:
                 print('- Slackness not satisfied. Abort...')
@@ -281,11 +281,17 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     for dim,succ in enumerate(successors):
                         M.poly_pre_state[succ].add((s.id, a.id, dim))
                         
+                    flag = 0
+                        
                     if len(involved_parameters) > 1:
                         print('ERROR: number of parameters in state-action ({},{}) bigger than one'.format(s.id, a.id))
-                        assert False
+                        flag = 1
+                        M.parameters['par'+str(s.id)] = cp.Parameter(value = 0.02)
+                        v = 'par'+str(s.id)
+                        # assert False
                         
-                    v = list(involved_parameters)[0]
+                    else:
+                        v = list(involved_parameters)[0]
                     
                     # Keep track of to which state-action pairs each parameter belongs
                     if v in M.param2stateAction:
@@ -293,7 +299,9 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     else:
                         M.param2stateAction[ v ] = [(s.id, a.id)]
                     
-                    if uncertainty_model == Hoeffding_interval:
+                    if flag == 1:
+                        A, b = Linf_polytope(probabilities, M.parameters[v])
+                    elif uncertainty_model == Hoeffding_interval and flag == 0:
                         A, b = uncertainty_model(probabilities, args.robust_confidence, M.parameters[v], MIN_PROBABILITY)
                     else:
                         A, b = uncertainty_model(probabilities, M.parameters[v])
@@ -311,6 +319,17 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     
         # Set action iterator
         M.states_dict[s.id].set_action_iterator()
+
+    # Remove parameters that do not appear anywhere in the model
+    delete = []
+    for th in M.parameters.keys():
+        if th not in M.param2stateAction:
+            delete += [th]
+            
+    for d in delete:
+        del M.parameters[d]
+    
+    iters = sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
 
     # set state iterator
     M.set_state_iterator()

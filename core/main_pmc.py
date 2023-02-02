@@ -142,14 +142,17 @@ def run_pmc(args, model_path, param_path, verbose):
 
 def get_pmdp_reward_from_label(model, label):
     
+    
     R = np.zeros(len(model.states))
     
+    # print(label)
     all_labels = set({})
     
     for s in model.states:
         all_labels.update(model.labels_state(s.id))
         if label in model.labels_state(s.id):
             R[s.id] = 1
+            print('Reward for {} = 1'.format(s.id))
             
     # print(all_labels)
     # assert False

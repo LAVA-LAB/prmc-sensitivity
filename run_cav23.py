@@ -17,9 +17,11 @@ args = parse_inputs()
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
-# args.model = 'models/slipgrid/fix_pmc_size=30_params=100_seed=0.drn'
-# args.parameters = 'models/slipgrid/fix_pmc_size=30_params=100_seed=0_mle.json'
-# args.formula = 'Rmin=? [F \"goal\"]'
+# args.model = 'models/pmdp/CSMA/csma2_4_param.nm'
+# # args.parameters = 'models/pmdp/CSMA/csma2_4_param.nm'
+# args.formula = 'R{"time"}max=?  [ F "all_delivered" ]'
+# args.default_valuation = 0.1
+# args.explicit_baseline = True
 # args.num_deriv = 4
 # args.validate_delta = 1e-4
 
