@@ -524,8 +524,22 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 ##########################################
 # Generate other, random slipgrids
 
-grid_size = [800] #[10, 25, 50, 100, 200, 400, 800] #[50,200,800]
-no_params = [100] #[10, 100, 1000, 10000, 100000] #[1000,10000,100000]
+cases = [
+    (10,    10),
+    (50,    50),
+    (50,    100),
+    (50,    1000),
+    (100,   100),
+    (100,   1000),
+    (200,   100),
+    (200,   1000),
+    (200,   10000),
+    (400,   100),
+    (400,   1000),
+    (400,   10000),
+    (800,   100)
+    ]
+
 p_range = [0.10, 0.20]
 
 # Number of parameters to estimate probabilities with
@@ -540,8 +554,7 @@ BASH_FILE = ["#!/bin/bash",
 
 num_derivs = 1
 
-for Z in grid_size:
-  for V in no_params:
+for (Z,V) in cases:
     for mode in ['fix', 'double']:
       
         N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
@@ -594,21 +607,23 @@ for Z in grid_size:
             drn_path = gen_pMDP_random_drn(N, terrain, model_name,
                                     loc_package, loc_warehouse, reward, slipmode = mode)
             
-            command = ["python3 run_cav23.py",
+            command = ["timeout 3600s python3 run_cav23.py",
                        '--instance "grid({},{})"'.format(Z,V),
                        "--model '{}'".format(drn_path),
                        "--parameters '{}'".format(json_mle_path),
                        "--formula 'Rmin=? [F \"goal\"]'",
                        "--pMC_engine 'spsolve'",
-                       "--validate_delta 1e-4",
+                       "--validate_delta -0.001",
                        "--output_folder 'output/slipgrid/'",
                        "--num_deriv {}".format(num_derivs),
                        "--explicit_baseline",
-                       "--robust_bound 'lower'",
-                       "--no_prMC",
-                       "--scale_reward;"]
+                       "--robust_bound 'lower'"
+                       "--scale_reward"]
             
-            BASH_FILE += [" ".join(command)]
+            if Z > 200:
+                command += ["--no_prMC"]
+            
+            BASH_FILE += [" ".join(command)+";"]
         
 BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'tables/slipgrid_table'"]
         
