@@ -617,7 +617,7 @@ for (Z,V) in cases:
                        "--output_folder 'output/slipgrid/'",
                        "--num_deriv {}".format(num_derivs),
                        "--explicit_baseline",
-                       "--robust_bound 'lower'"
+                       "--robust_bound 'lower'",
                        "--scale_reward"]
             
             if Z > 200:
