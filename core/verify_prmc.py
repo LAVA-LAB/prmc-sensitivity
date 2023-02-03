@@ -170,7 +170,39 @@ class cvx_verification_gurobi:
                 
             self.keepalpha[i] = lambda_zero
             self.keeplambda[i] = alpha_zero
-    
+            
+            # active_constraints = sum(self.keepalpha[i])
+            # successors = len(M.states_dict[s].actions_dict[a].successors)
+            
+            # too_many = active_constraints + 1 - successors
+            
+            
+            # if too_many > 0:
+            #     print('ERROR! Too many active constraints',too_many)
+                
+            #     active_idxs = np.where(self.keepalpha[i] == True)[0]
+            #     disable = np.array(active_idxs[:too_many], dtype=int)
+                
+            #     # print(active_idxs, too_many)
+            #     # print(disable)
+            #     # print(self.keepalpha)
+            #     # print(self.keepalpha[i][disable])
+                
+            #     # Reduce the number of activate constraints manually
+            #     # By setting some alpha values to zero..
+            #     self.keepalpha[i][disable] = False
+                
+            # elif too_many < 0:
+            #     print('ERROR! Too few active constraints',too_many)
+                
+            #     inactive_idxs = np.where(self.keepalpha[i] == False)[0]
+            #     enable = np.array(inactive_idxs[:np.abs(too_many)], dtype=int)
+                
+            #     # Reduce the number of activate constraints manually
+            #     # By setting some alpha values to zero..
+            #     self.keepalpha[i][enable] = True
+                
+            
         self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]
         self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
         

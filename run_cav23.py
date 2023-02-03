@@ -17,10 +17,15 @@ args = parse_inputs()
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
+# args.model = 'models/pdtmc/brp16_2.pm'
+# args.formula = 'P=? [ F s=5 ]'
+# args.default_valuation = 0.9
+# args.goal_label = '(s = 5)'
+
 # args.model = 'models/pmdp/CSMA/csma2_4_param.nm'
 # args.formula = 'R{"time"}max=? [ F "all_delivered" ]'
 # args.default_valuation = 0.1
-# args.goal_label = 'observe0Greater1'
+# args.goal_label = 'all_delivered'
 
 ### pMC execution
 
@@ -46,7 +51,7 @@ if not args.no_prMC:
     
     if inst['sample_size'] is None:
         print('- Create arbitrary sample sizes')
-        inst['sample_size'] = {par.name: 10000 + np.random.rand()*10 for par in pmc.parameters}
+        inst['sample_size'] = {par.name: 1000 + np.random.rand()*10 for par in pmc.parameters}
     
     # scale rewards for prMC:
     if args.scale_reward:

@@ -7,4 +7,5 @@
     $ python setup.py install
 
 Activate environment:
-source prmdps/bin/activate
+screen -S CAV23
+source prmdps/bin/activate;

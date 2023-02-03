@@ -1,7 +1,7 @@
 #!/bin/bash
 cd ..;
 echo -e "START BENCHMARK SUITE...";
-folder='output/benchmark_suite_cav2/'
+folder='output/benchmark_suite_cav3/'
 # pDTMC benchmarks
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/brp16_2.pm' --formula 'P=? [ F s=5 ]' --default_valuation 0.9 --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label '(s = 5)';
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/brp32_3.pm' --formula 'P=? [ F s=5 ]' --default_valuation 0.9 --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label '(s = 5)';
@@ -12,13 +12,13 @@ timeout 3600s python3 run_cav23.py --model 'models/pdtmc/brp1024_6.pm' --formula
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/crowds3_5.pm' --formula 'P=? [F "observe0Greater1" ]' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'observe0Greater1';
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/crowds6_5.pm' --formula 'P=? [F "observe0Greater1" ]' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'observe0Greater1';
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/crowds10_5.pm' --formula 'P=? [F "observe0Greater1" ]' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'observe0Greater1';
-timeout 3600s python3 run_cav23.py --model 'models/pdtmc/crowds20_10.pm' --formula 'P=? [F "observe0Greater1" ]' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'observe0Greater1';
+#timeout 3600s python3 run_cav23.py --model 'models/pdtmc/crowds20_10.pm' --formula 'P=? [F "observe0Greater1" ]' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'observe0Greater1';
 #
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/nand2_4.pm' --formula 'P=? [F "target" ]' --parameters 'models/pdtmc/nand.json' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'target';
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/nand5_10.pm' --formula 'P=? [F "target" ]' --parameters 'models/pdtmc/nand.json' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'target';
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/nand10_15.pm' --formula 'P=? [F "target" ]' --parameters 'models/pdtmc/nand.json' --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'target';
 #
-timeout 3600s python3 run_cav23.py --model 'models/pdtmc/herman5.pm' --formula 'P=? [ F "stable" ]' --default_valuation 0.9 --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'stable';
+timeout 3600s python3 run_cav23.py --model 'models/pdtmc/herman5.pm' --formula 'P=? [ F "stable" ]' --default_valuation 0.1 --validate_delta 1e-3 --output_folder $folder --explicit_baseline --goal_label 'stable';
 #
 timeout 3600s python3 run_cav23.py --model 'models/pdtmc/parametric_die.pm' --parameters 'models/pdtmc/parametric_die.json' --formula 'P=? [ F "three" ]' --validate_delta 1e-3 --output_folder $folder --explicit_baseline; # --goal_label 'three';
 #

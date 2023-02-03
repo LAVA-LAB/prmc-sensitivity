@@ -60,7 +60,7 @@ def run_prmc(pmc, args, inst, verbose):
                 
                 prmc.beta_penalty *= 100
                 solver_verbose = True
-                print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...\n'.format(prmc.beta_penalty, trials_max-trials))
+                print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...'.format(prmc.beta_penalty, trials_max-trials))
                 
                 print('- Add small delta to reward vector to break symmetry...')
                 pmc.reward += 1e-2*np.random.rand(len(pmc.reward))
@@ -96,12 +96,19 @@ def run_prmc(pmc, args, inst, verbose):
     else:
         direction = GRB.MINIMIZE
         
-    print('- Shape of J matrix:', G.J.shape)
+    print('- Shape of J matrix:', G.J.shape, G.Ju.shape)
         
     deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
                                 direction=direction, verbose=verbose)
     
-    deriv['LP_pars'] = prmc.parameters_pmc[ deriv['LP_idxs']][0].name
+    deriv['LP_pars'] = np.array(list(prmc.parameters.values()))[ deriv['LP_idxs'] ]
+    
+    import cvxpy as cp
+    for i,par in enumerate(deriv['LP_pars']):
+        if isinstance(par, cp.Parameter):
+            deriv['LP_pars'] = par.name()
+        else:
+            deriv['LP_pars'] = par.name
     
     T['solve_LP'] = time.time() - start_time   
     print('- LP solved in: {:.3f} sec.'.format(T['solve_LP']))
@@ -259,20 +266,17 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     M.states_dict[s.id].actions_dict[a.id].model = \
                             distribution(successors, probabilities)
                 
-                elif len(involved_parameters) == 0:    
+                elif len(involved_parameters) == 0 or len(involved_parameters) > 1:    
                     
-                    # No parameters involved, so create precise distribution
-                    if len(involved_parameters) == 0:
-                        
-                        # Deterministic transition (no uncertainty model)
-                        M.states_dict[s.id].actions_dict[a.id].deterministic = True
-                        
-                        # Set adjacency matrix entries
-                        for succ, prob in zip(successors, probabilities):
-                            M.distr_pre_state[succ].add((s.id, a.id, prob))
-                        
-                        M.states_dict[s.id].actions_dict[a.id].model = \
-                                distribution(successors, probabilities)            
+                    # Deterministic transition (no uncertainty model)
+                    M.states_dict[s.id].actions_dict[a.id].deterministic = True
+                    
+                    # Set adjacency matrix entries
+                    for succ, prob in zip(successors, probabilities):
+                        M.distr_pre_state[succ].add((s.id, a.id, prob))
+                    
+                    M.states_dict[s.id].actions_dict[a.id].model = \
+                            distribution(successors, probabilities)            
                 
                 else:
                     
@@ -285,15 +289,15 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                         
                     flag = 0
                         
-                    if len(involved_parameters) > 1:
-                        print('ERROR: number of parameters in state-action ({},{}) bigger than one'.format(s.id, a.id))
-                        flag = 1
-                        M.parameters['par'+str(s.id)] = cp.Parameter(value = 0.02)
-                        v = 'par'+str(s.id)
-                        # assert False
+                    # if len(involved_parameters) > 1:
+                    #     print('ERROR: number of parameters in state-action ({},{}) bigger than one'.format(s.id, a.id))
+                    #     flag = 1
+                    #     M.parameters['par'+str(s.id)] = cp.Parameter(value = 0.02)
+                    #     v = 'par'+str(s.id)
+                    #     # assert False
                         
-                    else:
-                        v = list(involved_parameters)[0]
+                    # else:
+                    v = list(involved_parameters)[0]
                     
                     # Keep track of to which state-action pairs each parameter belongs
                     if v in M.param2stateAction:
