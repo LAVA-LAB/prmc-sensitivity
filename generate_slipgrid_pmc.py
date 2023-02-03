@@ -536,9 +536,9 @@ cases = [
     (200,   100),
     (200,   1000),
     (200,   10000),
-    # (400,   100),
-    # (400,   1000),
-    # (400,   10000),
+    #(400,   100),
+    #(400,   1000),
+    #(400,   10000),
     # (800,   100)
     ]
 
@@ -624,8 +624,8 @@ for (Z,V) in cases:
                        "--robust_bound 'lower'",
                        "--scale_reward"]
             
-            if (Z >= 100 and mode == 'fix') or (Z >= 200 and mode == 'double'):
-                command += ["--no_prMC"]
+            #if (Z >= 100 and mode == 'fix') or (Z >= 200 and mode == 'double'):
+            #    command += ["--no_prMC"]
             
             BASH_FILE += [" ".join(command)+";"]
         
