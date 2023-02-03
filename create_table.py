@@ -49,7 +49,7 @@ for i,file in enumerate(filenames):
 df_merged = pd.concat(df, axis=1).T
 
 # Round to 3 decimal places
-round_keys = ['Solution', 'Model verify [s]', 'LP (solve) [s]', 'Difference %', 
+round_keys = ['Solution', 'Model verify [s]', 'LP (solve) [s]' 
               'Differentiate explicitly [s]']
 
 for key in round_keys:
@@ -58,9 +58,11 @@ for key in round_keys:
     else:
         print('Warning, key `{}` not in dataframe'.format(key))
 
-df_merged['Max. derivatives'] = df_merged['Max. derivatives'].map('{:,.2e}'.format)
-if 'Max. validation' in df_merged:
-    df_merged['Max. validation'] = df_merged['Max. validation'].map('{:,.2e}'.format)
+if len(df_merged['Max. derivatives']) == 1:
+    df_merged['Difference %'] = df_merged['Difference %'].map('{:,.3f}'.format)
+    df_merged['Max. derivatives'] = df_merged['Max. derivatives'].map('{:,.2e}'.format)
+    if 'Max. validation' in df_merged:
+        df_merged['Max. validation'] = df_merged['Max. validation'].map('{:,.2e}'.format)
 
 print(df_merged)
 

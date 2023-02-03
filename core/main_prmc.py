@@ -150,7 +150,7 @@ def run_prmc(pmc, args, inst, verbose):
             CVX_GRB.cvx.Params.NumericFocus = 3
             CVX_GRB.cvx.Params.ScaleFlag = 1
             
-            CVX_GRB.solve(store_initial = True, verbose=True)
+            CVX_GRB.solve(store_initial = True, verbose=verbose)
             
             solution_new = CVX_GRB.x_tilde[pmc.sI['s']] @ pmc.sI['p']
             

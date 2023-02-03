@@ -527,19 +527,19 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 # Generate other, random slipgrids
 
 cases = [
-    # (10,    10),
-    # (50,    50),
-    # (50,    100),
-    # (50,    1000),
-    # (100,   100),
-    # (100,   1000),
+    (10,    10),
+    (50,    50),
+    (50,    100),
+    (50,    1000),
+    (100,   100),
+    (100,   1000),
     (200,   100),
     (200,   1000),
     (200,   10000),
-    #(400,   100),
-    #(400,   1000),
-    #(400,   10000),
-    # (800,   100)
+    (400,   100),
+    (400,   1000),
+    (400,   10000),
+    (800,   100)
     ]
 
 p_range = [0.10, 0.20]
@@ -554,11 +554,12 @@ BASH_FILE = ["#!/bin/bash",
              "cd ..;",
              'echo -e "START GRID WORLD EXPERIMENTS...";']
 
-num_derivs = 1
+NUM = [10]
 
 dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
 
-for (Z,V) in cases:
+for num_derivs in NUM:
+  for (Z,V) in cases:
     for mode in ['double']:
       
         N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
@@ -624,8 +625,11 @@ for (Z,V) in cases:
                        "--robust_bound 'lower'",
                        "--scale_reward"]
             
-            #if (Z >= 100 and mode == 'fix') or (Z >= 200 and mode == 'double'):
-            #    command += ["--no_prMC"]
+            if num_derivs > 1:
+                command += ["--no_gradient_validation"]
+            
+            if (Z >= 400) or (Z >= 200 and V > 100):
+                command += ["--no_prMC"]
             
             BASH_FILE += [" ".join(command)+";"]
         
