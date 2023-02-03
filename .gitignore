@@ -6,17 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
-# Output folder
-output/*
-!output/.keep
-
 # Models/slipgrid folder
 models/slipgrid/*
 !models/slipgrid/.keep
-
-# Output folder
-tables/*
-!tables/.keep
 
 # Tarball (e.g. docker container)
 *.tar
