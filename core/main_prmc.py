@@ -63,7 +63,7 @@ def run_prmc(pmc, args, inst, verbose):
                 print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...\n'.format(prmc.beta_penalty, trials_max-trials))
                 
                 print('- Add small delta to reward vector to break symmetry...')
-                pmc.reward += 1e-1*np.random.rand(len(pmc.reward))
+                pmc.reward += 1e-2*np.random.rand(len(pmc.reward))
                 
             else:
                 print('- Slackness not satisfied. Abort...')
@@ -95,6 +95,8 @@ def run_prmc(pmc, args, inst, verbose):
         direction = GRB.MAXIMIZE
     else:
         direction = GRB.MINIMIZE
+        
+    print('- Shape of J matrix:', G.J.shape)
         
     deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
                                 direction=direction, verbose=verbose)

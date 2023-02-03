@@ -18,6 +18,9 @@ parser.add_argument('--folder', type=str, action="store", dest='folder',
                     default='output/slipgrid/', help="Folder to combine output files from")
 parser.add_argument('--table_name', type=str, action="store", dest='table_name', 
                     default='tables/export_{}'.format(dt), help="Name of table csv file")
+parser.add_argument('--detailed', dest='detailed', action='store_true',
+                    help="If True, output more columns in table.")
+parser.set_defaults(detailed=False)
 
 args = parser.parse_args()    
 
@@ -46,7 +49,7 @@ for i,file in enumerate(filenames):
 df_merged = pd.concat(df, axis=1).T
 
 # Round to 3 decimal places
-round_keys = ['Solution', 'LP (solve) [s]', 'Difference %', 
+round_keys = ['Solution', 'Model verify [s]', 'LP (solve) [s]', 'Difference %', 
               'Differentiate explicitly [s]']
 
 for key in round_keys:
@@ -67,11 +70,16 @@ df_merged.sort_values(['Type', 'States', 'Parameters', 'Transitions'],
                       inplace = True)
 
 # Only keep certain columns for Latex table
-table_columns = ['Type', 
+if args.detailed:
+    table_columns = ['instance']
+else:
+    table_columns = []
+table_columns +=['Type', 
                  'States', 
                  'Parameters',
                  'Transitions',
-                 'Solution']
+                 'Solution',
+                 'Model verify [s]']
 
 if 'Differentiate explicitly [s]' in df_merged:
     table_columns += ['Differentiate explicitly [s]']

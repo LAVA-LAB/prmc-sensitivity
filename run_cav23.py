@@ -18,19 +18,9 @@ args = parse_inputs()
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
 # args.model = 'models/pmdp/CSMA/csma2_4_param.nm'
-# # args.parameters = 'models/pmdp/CSMA/csma2_4_param.nm'
-# args.formula = 'R{"time"}max=?  [ F "all_delivered" ]'
+# args.formula = 'R{"time"}max=? [ F "all_delivered" ]'
 # args.default_valuation = 0.1
-# args.explicit_baseline = True
-# args.num_deriv = 4
-# args.validate_delta = 1e-4
-
-# args.instance ='dummy'
-# args.robust_bound = 'upper'
-
-# args.model = 'models/pdtmc/brp512_5.pm'
-# args.formula = 'P=? [ F s=5 ]'
-# args.goal_label = '(s = 5)'
+# args.goal_label = 'observe0Greater1'
 
 ### pMC execution
 
