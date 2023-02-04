@@ -24,6 +24,10 @@ parser.set_defaults(detailed=False)
 
 args = parser.parse_args()    
 
+args.folder = 'output/benchmarks_k=10'
+args.table_name = 'tables/benchmarks_k=10'
+args.detailed = True
+
 root_dir = os.path.dirname(os.path.abspath(__file__))
 mypath = os.path.join(root_dir, args.folder)
 
@@ -87,9 +91,12 @@ if 'Differentiate explicitly [s]' in df_merged:
     table_columns += ['Differentiate explicitly [s]']
     
 table_columns += ['LP (solve) [s]',
-                 'Max. derivatives', 
-                 'Max. validation', 
-                 'Difference %']
+                 'Max. derivatives']
+
+if 'Max. validation' in df_merged:
+    table_columns += ['Max. validation']
+if 'Difference %' in df_merged:
+    table_columns += ['Difference %']
 
 print('- All files merged into a single Pandas DataFrame')
 

@@ -528,6 +528,7 @@ gen_pMC(N, slipping_probabilities, policy_before, policy_after,
 
 cases = [
     (10,    10),
+    (20,    100),
     (50,    50),
     (50,    100),
     (50,    1000),
