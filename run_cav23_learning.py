@@ -185,14 +185,14 @@ for mode in ['derivative', 'random', 'samples']:
                 true_prob = true_valuation[x.name]
                 samples = np.random.binomial(SAMPLES_PER_STEP, true_prob)
                 
-                print('>> ({},{}) - Drawn {} more samples for parameter {} ({} positives)'.format(seed, i, SAMPLES_PER_STEP, x, samples))
+                print('>> ({},{},{}) - Drawn {} more samples for parameter {} ({} positives)'.format(mode,seed, i, SAMPLES_PER_STEP, x, samples))
                 
                 new_sample_mean = (inst['valuation'][x.name] * inst['sample_size'][x.name] + samples) / (inst['sample_size'][x.name] + SAMPLES_PER_STEP)
                 
                 inst['valuation'][x.name] = new_sample_mean
                 inst['sample_size'][x.name] += SAMPLES_PER_STEP
                 
-                print(inst['sample_size'])
+                # print(inst['sample_size'])
             
             ##### UPDATE PARAMETER POINT
             instantiated_model, inst['point'] = pmc.instantiate(inst['valuation'])
@@ -209,5 +209,5 @@ for mode in ['derivative', 'random', 'samples']:
     print('\nprMC code ended at {}\n'.format(current_time))
     print('=============================================')
     
-    ALL_SOLUTIONS.to_csv('Learning_{}.csv'.format(mode), sep=';')    
+    ALL_SOLUTIONS.to_csv('Learning_bias_{}.csv'.format(mode), sep=';')    
         

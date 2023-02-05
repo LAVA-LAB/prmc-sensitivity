@@ -252,6 +252,7 @@ Nmin = 100
 Nmax = 100
 
 ITERS = 1
+BIAS = True
 
 NUM = [10]
 dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
@@ -277,8 +278,30 @@ for num_derivs in NUM:
                 continue
             
             # Set ID's of terrain types
-            terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
+            if BIAS:
+                
+                order = np.arange(0, V)
+                np.random.shuffle(order)
+                
+                listA = np.random.randint(low=0, high=10, size=int(Z**2/2))
+                terrainA = order[listA]
+                listB = np.random.randint(low=10, high=30, size=int(Z**2/4))
+                terrainB = order[listB]
+                listC = np.random.randint(low=30, high=V, size=int(Z**2/4))
+                terrainC = order[listC]
             
+                terrain = np.concatenate((terrainA, terrainB, terrainC))
+                np.random.shuffle(terrain)
+                terrain = np.reshape(terrain, (Z,Z))
+            
+            else:
+                terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
+            
+            print('Terrain:')
+            print(terrain)
+            for w in range(V):
+                print(w,':',len(np.where(terrain == w)[0]))
+                        
             # Set slipping probabilities (v1 corresponds with terrin type 1)
             slipping_probabilities = {
                 'v'+str(i): np.random.uniform(p_range[0], p_range[1]) for i in range(V)
