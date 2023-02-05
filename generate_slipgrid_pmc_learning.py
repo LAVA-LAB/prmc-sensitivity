@@ -241,6 +241,8 @@ def gen_pMDP_random_drn(N, terrain, model_name,
 ##########################################
 # Generate other, random slipgrids
 
+np.random.seed(0)
+
 cases = [
     (20,    100),
     ]
