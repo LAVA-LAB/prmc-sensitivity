@@ -11,7 +11,6 @@ from core.export import export_json
 import sys
 import time
 from gurobipy import GRB
-import copy
 
 
 def run_prmc(pmc, args, inst, verbose):
@@ -169,7 +168,7 @@ def run_prmc(pmc, args, inst, verbose):
             
     return prmc, T, inst, solution, deriv
     
-def pmc2prmc(model, parameters, point, sample_size, args, verbose):
+def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
 
     scheduler = None
     
@@ -183,9 +182,6 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
     else:
         uncertainty_model = L1_polytope
 
-    # Minimum margin between [0,1] bounds and every transition probability
-    MIN_PROBABILITY = 1e-6
-
     # Define graph object
     M = PRMC(num_states = len(model.states))
     M.set_initial_states(model.initial_states)
@@ -196,12 +192,7 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
     M.is_sink_state = model.is_sink_state
     
     M.nr_transitions = model.nr_transitions
-    M.parameters_pmc = parameters    
-    
-    # Define parameters used in uncertainty sets
-    for q,k in enumerate(parameters):
-        
-        M.parameters[k] = cp.Parameter(value = sample_size[k.name])
+    M.parameters_pmc = pmc_parameters
     
     # Parse model
     for s in model.states:
@@ -242,22 +233,25 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     print('-- Add action {} for state {} with {} transitions'.format(a.id, s.id, len(a.transitions)))
                 
                 M.states_dict[s.id].actions_dict[a.id] = action(a.id)
-            
+                
                 successors      = np.array([t.column for t in a.transitions])
+                M.states_dict[s.id].actions_dict[a.id].parametricTrans = a.transitions
+                
                 probabilities   = np.array([float(t.value().evaluate(point)) for t in a.transitions])
                 
                 M.states_dict[s.id].actions_dict[a.id].successors = successors
                 
                 # Retrieve involved parameter
-                involved_parameters = set({})
+                involved_pmc_parameters = set({})
                 for t in a.transitions:
                     var = t.value().gather_variables()
-                    involved_parameters.update(var)
+                    involved_pmc_parameters.update(var)
                 
                 if len(successors) == 1:
                     
                     # Deterministic transition (no uncertainty model)
                     M.states_dict[s.id].actions_dict[a.id].deterministic = True
+                    M.states_dict[s.id].actions_dict[a.id].robust = False
                     
                     # Set adjacency matrix entries
                     for succ, prob in zip(successors, probabilities):
@@ -266,53 +260,50 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     M.states_dict[s.id].actions_dict[a.id].model = \
                             distribution(successors, probabilities)
                 
-                elif len(involved_parameters) == 0 or len(involved_parameters) > 1:    
-                    
-                    # Deterministic transition (no uncertainty model)
-                    M.states_dict[s.id].actions_dict[a.id].deterministic = True
-                    
-                    # Set adjacency matrix entries
-                    for succ, prob in zip(successors, probabilities):
-                        M.distr_pre_state[succ].add((s.id, a.id, prob))
-                    
-                    M.states_dict[s.id].actions_dict[a.id].model = \
-                            distribution(successors, probabilities)            
-                
                 else:
                     
-                    # State is nonterminal and distribution is uncertain/robust              
+                    # State is nonterminal and distribution is uncertain/robust
+                    M.states_dict[s.id].actions_dict[a.id].deterministic = False
                     M.states_dict[s.id].actions_dict[a.id].robust = True
                     
                     # Set adjacency matrix entries
                     for dim,succ in enumerate(successors):
                         M.poly_pre_state[succ].add((s.id, a.id, dim))
-                        
-                    flag = 0
-                        
-                    # if len(involved_parameters) > 1:
-                    #     print('ERROR: number of parameters in state-action ({},{}) bigger than one'.format(s.id, a.id))
-                    #     flag = 1
-                    #     M.parameters['par'+str(s.id)] = cp.Parameter(value = 0.02)
-                    #     v = 'par'+str(s.id)
-                    #     # assert False
-                        
-                    # else:
-                    v = list(involved_parameters)[0]
+                    
+                    M.stateAction2param[(s.id, a.id)] = list(involved_pmc_parameters)
                     
                     # Keep track of to which state-action pairs each parameter belongs
-                    if v in M.param2stateAction:
-                        M.param2stateAction[ v ] += [(s.id, a.id)]
-                    else:
-                        M.param2stateAction[ v ] = [(s.id, a.id)]
+                    for v in list(involved_pmc_parameters):
+                        if v in M.param2stateAction:
+                            M.param2stateAction[ v ] += [(s.id, a.id)]
+                        else:
+                            M.param2stateAction[ v ] = [(s.id, a.id)]
                     
-                    if flag == 1:
-                        A, b = Linf_polytope(probabilities, M.parameters[v])
-                    elif uncertainty_model == Hoeffding_interval and flag == 0:
-                        A, b = uncertainty_model(probabilities, args.robust_confidence, M.parameters[v], MIN_PROBABILITY)
-                    else:
-                        A, b = uncertainty_model(probabilities, M.parameters[v])
+                    M.states_dict[s.id].actions_dict[a.id].type = uncertainty_model
                     
-                    M.states_dict[s.id].actions_dict[a.id].model = polytope(A, b)
+                    if uncertainty_model == Hoeffding_interval:
+                        
+                        if len(involved_pmc_parameters) > 1:
+                            print('Error, cannot use Hoeffding intervals with multiple parameters in single distribution')
+                            assert False
+                        
+                        else:
+                            
+                            v = list(involved_pmc_parameters)[0]
+                            if v not in M.parameters:
+                                M.parameters[v] = cp.Parameter(value = sample_size[v.name])
+                        
+                        w = M.parameters[v]
+                        A, b = uncertainty_model(probabilities, args.robust_confidence, w)
+                    else:
+                        
+                        if (s,a) not in M.parameters:
+                            M.parameters[(s,a)] = cp.Parameter(value = 1000)
+                        
+                        w = M.parameters[(s,a)]
+                        A, b = uncertainty_model(probabilities, w)
+                    
+                    M.states_dict[s.id].actions_dict[a.id].model = polytope(A, b, uncertainty_model, w, args.robust_confidence)
 
                     # Keep track of all robust state-action pairs
                     M.robust_pairs_suc[(s.id, a.id)] = len(successors)
@@ -323,12 +314,14 @@ def pmc2prmc(model, parameters, point, sample_size, args, verbose):
                     M.robust_constraints += len(b)
                     
                     
+                    
+                    
         # Set action iterator
         M.states_dict[s.id].set_action_iterator()
 
     # Remove parameters that do not appear anywhere in the model
     delete = []
-    for th in M.parameters.keys():
+    for th in M.parameters_pmc:
         if th not in M.param2stateAction:
             delete += [th]
             

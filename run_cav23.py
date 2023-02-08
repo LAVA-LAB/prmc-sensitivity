@@ -17,6 +17,10 @@ args = parse_inputs()
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
+args.model = 'models/slipgrid/double_pmc_size=10_params=10_seed=0.drn'
+args.parameters = 'models/slipgrid/double_pmc_size=10_params=10_seed=0_mle.json'
+args.formula = 'Rmin=? [F "goal"]'
+
 # args.model = 'models/pdtmc/brp16_2.pm'
 # args.formula = 'P=? [ F s=5 ]'
 # args.default_valuation = 0.9

@@ -30,13 +30,16 @@ def Linf_polytope(center, size):
         
     return A,b
 
-def Hoeffding_interval(center, confidence, parameter, min_probability):
+def Hoeffding_interval(center, confidence, parameter):
     
     '''
     Compute polytopic uncertainty set, representing intervals obtained using
     Hoeffding's inequality
     Returns polytope of the form Ap <= b
     '''
+    
+    # Minimum margin between [0,1] bounds and every transition probability
+    min_probability = 1e-6
     
     alpha = np.sqrt(np.log(2/(1-confidence)) / 2)
     

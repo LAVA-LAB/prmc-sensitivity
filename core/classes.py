@@ -5,6 +5,7 @@ import stormpy.core
 import stormpy._config as config
 from tabulate import tabulate
 
+from core.uncertainty_models import Linf_polytope, L1_polytope, Hoeffding_interval
 
 class PMC:
     
@@ -139,6 +140,8 @@ class PRMC:
         self.parameters = {}
         self.sample_size = {}
         self.parameters_max_value = {}
+        
+        self.stateAction2param = {}
         self.param2stateAction = {}
         
         self.robust_pairs_suc = {}
@@ -178,6 +181,28 @@ class PRMC:
     def get_state_set(self):
         
         return set(self.states_dict.keys())
+    
+    def update_distribution(self, var, inst):
+        '''
+        Update a single parameter v of the PRMC
+        '''
+        
+        for (s,a) in self.param2stateAction[ var ]:
+            
+            SA = self.states_dict[s].actions_dict[a]
+            probabilities = np.array([float(t.value().evaluate(inst['point'])) for t in SA.parametricTrans])
+            successors = SA.successors
+            
+            if len(successors) == 1:
+                
+                SA.model = distribution(successors, probabilities)
+                
+            else:
+                
+                # Update probability distribution
+                SA.model.update_point(probabilities)
+                
+                
 
 class state:
     
@@ -191,6 +216,8 @@ class state:
         
         self.actions = self.actions_dict.values()
         
+        
+        
 class action:
     
     def __init__(self, id):
@@ -200,7 +227,9 @@ class action:
         self.deterministic = False # Is this transition deterministic?
         self.robust = False # Action has uncertain/robust probabilities?
         self.successors = []
+      
         
+      
 class distribution:
     
     def __init__(self, states, probabilities):
@@ -208,10 +237,25 @@ class distribution:
         self.states = states
         self.probabilities = probabilities
         
+        
+        
 class polytope:
     
-    def __init__(self, A, b):
+    def __init__(self, A, b, typ, parameter, confidence = None):
         
         self.A = A
         self.b = b
-
+        self.parameter = parameter
+        self.type = typ
+        self.confidence = confidence
+        
+    def update_point(self, probabilities):
+        
+        if self.type == Hoeffding_interval:
+            A, b = Hoeffding_interval(probabilities, self.confidence, self.parameter)
+            
+        else:
+            A, b = self.type(probabilities, self.parameter)
+            
+        self.A = A
+        self.b = b
