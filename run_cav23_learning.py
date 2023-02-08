@@ -240,7 +240,7 @@ import matplotlib.pyplot as plt
 
 # red dashes, blue squares and green triangles
 
-df_merged = pd.concat([df for df in ALL_SOLUTIONS.values()], axis=1)
+df_merged = pd.concat([df.mean(axis=1) for df in ALL_SOLUTIONS.values()], axis=1)
 df_merged.columns = list(ALL_SOLUTIONS.keys())
 
 df_merged.plot()
