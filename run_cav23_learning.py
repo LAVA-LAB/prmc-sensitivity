@@ -70,8 +70,8 @@ current_time = datetime.now().strftime("%H:%M:%S")
 print('\npMC code ended at {}\n'.format(current_time))
 print('=============================================')
 
-ITERS = 2
-MAX_STEPS = 10
+ITERS = 10
+MAX_STEPS = 1000
 SAMPLES_PER_STEP = 25
 
 ALL_SOLUTIONS = {}
