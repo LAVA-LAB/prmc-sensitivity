@@ -70,8 +70,8 @@ current_time = datetime.now().strftime("%H:%M:%S")
 print('\npMC code ended at {}\n'.format(current_time))
 print('=============================================')
 
-ITERS = 10
-MAX_STEPS = 1000
+ITERS = 2
+MAX_STEPS = 10
 SAMPLES_PER_STEP = 25
 
 ALL_SOLUTIONS = {}
@@ -236,10 +236,6 @@ for mode in ['derivative', 'exp-visits']: #, 'samples', 'random']:
     dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     ALL_SOLUTIONS[mode].to_csv('Learning_{}_{}.csv'.format(dt,mode), sep=';')    
         
-
-assert False    
-# %%
-
 import matplotlib.pyplot as plt
 
 # red dashes, blue squares and green triangles
