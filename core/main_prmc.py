@@ -325,6 +325,8 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
         if th not in M.param2stateAction:
             delete += [th]
             
+            print('Delete a parameter')
+            
     for d in delete:
         del M.parameters[d]
     

@@ -20,9 +20,12 @@ import numpy as np
 from pathlib import Path
 from tabulate import tabulate
 from datetime import datetime
+import random
 
 # Parse arguments
 args = parse_inputs()
+
+export = True
 
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -70,26 +73,27 @@ current_time = datetime.now().strftime("%H:%M:%S")
 print('\npMC code ended at {}\n'.format(current_time))
 print('=============================================')
 
-ITERS = 10
-MAX_STEPS = 1000
+SEEDS = np.arange(10)
+MAX_STEPS = 500
 SAMPLES_PER_STEP = 25
 
 ALL_SOLUTIONS = {}
 
-for mode in ['derivative', 'exp-visits']: #, 'samples', 'random']:
+for mode in ['derivative', 'expVisits']: #, 'exp-visits']: #, 'samples', 'random']:
     
     # RESULTS = pd.DataFrame(columns = ['Solution', 'Parameters', 'Derivatives', 'Added_samples', 'LP_time'])
 
     ALL_SOLUTIONS[mode] = pd.DataFrame()
     
-    for seed in range(ITERS):
+    for seed in SEEDS:
     
         print('>>> Start iteration {} <<<'.format(seed))
         
         args.instance = 'seed_{}'.format(seed)
         
         np.random.seed(seed) 
-    
+        random.seed(seed)
+        
         pmc, T, inst, solution, deriv = run_pmc(args, model_path, param_path, verbose = args.verbose)
     
         SOL_LIST = []    
@@ -109,8 +113,9 @@ for mode in ['derivative', 'exp-visits']: #, 'samples', 'random']:
             trials_max = 3
             solver_verbose = args.verbose
             
+            CVX_GRB.cvx.Params.Method = 5
+            CVX_GRB.cvx.Params.Seed = 0   
             
-                
             # CVX_GRB.cvx.Params.NumericFocus = 3
             # CVX_GRB.cvx.Params.ScaleFlag = 1
             
@@ -131,35 +136,41 @@ for mode in ['derivative', 'exp-visits']: #, 'samples', 'random']:
             # Switch between random parameter choice or via derivative
             if mode == 'random':
     
+                print('Sample uniformly...')            
+    
                 deriv['LP_idxs'] = np.array([np.random.randint(0, len(pmc.parameters))])
                 deriv['LP'] = 0
                 
                 PAR = pmc.parameters[deriv['LP_idxs']]
     
             elif mode == 'samples':
-    
+                print('Sample biggest interval...')
+                
                 minimum = 1e9            
                 param   = 0
     
-                for i,key in enumerate(pmc.parameters):
-                    if inst['sample_size'][key.name] < minimum:
-                        param = i
-                        minimum = inst['sample_size'][key.name]
-                
-                print('- Lower parameter count is {} for {}'.format(minimum, param))
+                par_samples = {}
     
-                deriv['LP_idxs'] = np.array([param])
-                deriv['LP'] = 0
+                # Get parameter with minimum number of samples so far
+                for i,key in enumerate(pmc.parameters):
+                    par_samples[key] = inst['sample_size'][key.name]
+                    
+                PAR = [min(par_samples, key=par_samples.get)]
+                deriv['LP'] = 0                
                 
-                PAR = pmc.parameters[deriv['LP_idxs']]
-            
+                print('- Lower parameter count is {} for {}'.format(min(par_samples.values()), PAR.name))
+                
             elif mode == 'expVisits':
+                
+                print('Sample based on importance factor (expVisits * intervalWidth...')
                 
                 importance = parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB)
                 
                 PAR = [max(importance, key=importance.get)]
                 
-            else:            
+            elif mode =='derivative':            
+    
+                print('Sample based on biggest absolute derivative...')            
     
                 start_time = time.time()
                 # Create object for computing gradients
@@ -183,9 +194,20 @@ for mode in ['derivative', 'exp-visits']: #, 'samples', 'random']:
                 start_time = time.time()    
                 
                 deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
-                                            direction=direction, verbose=args.verbose)
+                                            direction=direction, verbose=args.verbose, method=5)
             
-                PAR = pmc.parameters[deriv['LP_idxs']]
+                print('Idx: {}, deriv: {}'.format(deriv['LP_idxs'], deriv['LP']))
+            
+                PAR = [G.col2param[v] for v in deriv['LP_idxs']]
+
+                # PAR = pmc.parameters[deriv['LP_idxs']]
+                
+                print('PAR:', PAR)
+            
+            else:
+                
+                print('ERROR: unknown mode')
+                assert False
             
             PARAM_NAMES = []
             
@@ -234,7 +256,8 @@ for mode in ['derivative', 'exp-visits']: #, 'samples', 'random']:
     print('=============================================')
     
     dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    ALL_SOLUTIONS[mode].to_csv('Learning_{}_{}.csv'.format(dt,mode), sep=';')    
+    if export:
+        ALL_SOLUTIONS[mode].to_csv('Learning_{}_{}.csv'.format(dt,mode), sep=';')    
         
 import matplotlib.pyplot as plt
 
@@ -247,7 +270,8 @@ df_merged.plot()
 
 plt.axhline(y=solution_true, color='gray', linestyle='--')
 
-plt.savefig('learning_curves.png')
-plt.savefig('learning_curves.pdf')
+if export:
+    plt.savefig('learning_curves.png')
+    plt.savefig('learning_curves.pdf')
 
 plt.show()

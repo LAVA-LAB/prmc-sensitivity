@@ -150,6 +150,8 @@ class gradient:
         
         #####
     
+        self.col2param = {}
+    
         if mode == 'remove_dual':
             
             nr_rows = len(M.states) + M.robust_successors
@@ -161,6 +163,9 @@ class gradient:
             i = 0
             
             for v, (THETA_SA,THETA) in enumerate(M.parameters.items()):
+                
+                self.col2param[v] = THETA_SA
+                
                 for (s_id,a_id) in M.param2stateAction[THETA_SA]:
                     
                     j = M.states_dict[s_id].actions_dict[a_id].alpha_start_idx
@@ -195,6 +200,9 @@ class gradient:
                 nr_rows = 2*len(M.states) + len(M.robust_pairs_suc) + 2*M.robust_constraints + M.robust_successors
         
             for v, (THETA_SA,THETA) in enumerate(M.parameters.items()):
+                
+                self.col2param[v] = THETA_SA
+                
                 for (s_id,a_id) in M.param2stateAction[THETA_SA]:
                     
                     j = M.states_dict[s_id].actions_dict[a_id].alpha_start_idx
@@ -345,7 +353,7 @@ def solve_cvx(J, Ju, sI, k, direction = cp.Maximize, solver = 'SCS', verbose = F
 
 
 def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
-                     verbose = True, slackvar = False):
+                     verbose = True, slackvar = False, method = -1):
     '''
     Determine 'k' parameters with highest derivative in the initial state
 
@@ -370,7 +378,9 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     else:
         m.Params.OutputFlag = 0
     
-    # m.Params.Method = 2
+    m.Params.Method = method
+    m.Params.Seed = 0
+
     # m.Params.SimplexPricing = 3
     m.Params.NumericFocus = 3
     m.Params.ScaleFlag = 1
