@@ -1,4 +1,4 @@
-# %run "~/documents/sensitivity-prmdps/prmdp-sensitivity-git/generate_slipgrid_pmc_learning.py"
+# %run "~/documents/CAV23/prmdp-sensitivity/generate_slipgrid_pmc_learning.py"
 
 import numpy as np
 import json

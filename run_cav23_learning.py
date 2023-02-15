@@ -1,4 +1,4 @@
-# %run "~/documents/sensitivity-prmdps/prmdp-sensitivity-git/run_cav23_learning.py"
+# %run "~/documents/CAV23/prmdp-sensitivity/run_cav23_learning.py"
 
 from core.main_pmc import run_pmc
 from core.main_prmc import run_prmc
@@ -67,14 +67,14 @@ del pmc, inst, deriv
 
 
 
-
+UPDATE = True
 
 current_time = datetime.now().strftime("%H:%M:%S")
 print('\npMC code ended at {}\n'.format(current_time))
 print('=============================================')
 
 SEEDS = np.arange(10)
-MAX_STEPS = 500
+MAX_STEPS = 800
 SAMPLES_PER_STEP = 25
 
 ALL_SOLUTIONS = {}
@@ -125,8 +125,8 @@ for mode in ['derivative', 'expVisits']: #, 'exp-visits']: #, 'samples', 'random
             
             print(CVX_GRB.cvx)
             
-            SOL = np.round(CVX_GRB.x_tilde[pmc.sI['s']] @ pmc.sI['p'], 2)
-            SOL_LIST += [SOL]
+            SOL = CVX_GRB.x_tilde[pmc.sI['s']] @ pmc.sI['p']
+            SOL_LIST += [np.round(SOL, 2)]
             
             # print('Range of solutions: [{}, {}]'.format(np.min(CVX_GRB.x_tilde), np.max(CVX_GRB.x_tilde)))
             print('Solution in initial state: {}\n'.format(SOL))
@@ -200,9 +200,73 @@ for mode in ['derivative', 'expVisits']: #, 'exp-visits']: #, 'samples', 'random
             
                 PAR = [G.col2param[v] for v in deriv['LP_idxs']]
 
+                print('Solve via eq sys:')
+                
+                from scipy.sparse.linalg import spsolve
+                grad = spsolve(G.J, -G.Ju)[0,:]
+
+                print('Biggest derivative is:', np.min(grad))
+
                 # PAR = pmc.parameters[deriv['LP_idxs']]
                 
                 print('PAR:', PAR)
+                
+                
+                
+                
+                
+                
+                
+                '''
+                print('\nValidation by perturbing parameters by +{}'.format(args.validate_delta))
+                
+                validate_pars = pmc.parameters
+                
+                deriv['validate'] = np.zeros(len(validate_pars), dtype=float)
+                deriv['RelDiff']  = np.zeros(len(validate_pars), dtype=float)
+                
+                for q,x in enumerate(validate_pars):
+                    
+                    inst['sample_size'][x.name] += args.validate_delta
+                    
+                    args.beta_penalty = 0
+                    
+                    prmc_val = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose=False)
+                    
+                    # Increment this parameter by the given delta
+                    inst['valuation'][x.name] += args.validate_delta
+                    
+                    # instantiate model
+                    instantiated_model, point = pmc.instantiate(inst['valuation'])
+                    
+                    # print(pmc.reward)
+                    # assert False
+                    
+                    CVX_GRB_val = cvx_verification_gurobi(prmc_val, pmc.reward, args.robust_bound, verbose = False)
+                    
+                    CVX_GRB_val.cvx.Params.NumericFocus = 3
+                    CVX_GRB_val.cvx.Params.ScaleFlag = 1
+                    
+                    CVX_GRB_val.solve(store_initial = True)
+                    
+                    solution_new = CVX_GRB_val.x_tilde[pmc.sI['s']] @ pmc.sI['p']
+                    
+                    # Compute derivative
+                    deriv['validate'][q] = (solution_new-SOL) / args.validate_delta
+                    
+                    # Determine difference in %
+                    deriv['RelDiff'][q] = (deriv['validate'][q]-deriv['LP'][0])/deriv['LP'][0]
+                    
+                    print('- Parameter {}, val: {:.3f}, LP: {:.3f}, diff: {:.3f}'.format(x,  deriv['validate'][q], deriv['LP'][0], deriv['RelDiff'][q]))
+                    
+                    inst['sample_size'][x.name] -= args.validate_delta
+                
+                assert False
+                '''
+                
+                
+                
+                
             
             else:
                 
@@ -231,17 +295,27 @@ for mode in ['derivative', 'expVisits']: #, 'exp-visits']: #, 'samples', 'random
             ##### UPDATE PARAMETER POINT
             instantiated_model, inst['point'] = pmc.instantiate(inst['valuation'])
             
-            for var in PAR:
+            if UPDATE:
                 
-                # Update mean
-                prmc.update_distribution(var, inst)
+                for var in PAR:
+                    
+                    # Update sample size
+                    prmc.parameters[var].value = inst['sample_size'][var.name]
+                    
+                    print('New sample size:', prmc.parameters[var].value)
+                    
+                    # TODO: check change in dimensionality of polytope (nr of constraints)
+                    
+                    # Update mean
+                    prmc.update_distribution(var, inst)
+                    
+                    CVX_GRB.update_parameter(prmc, var)
+                    
+            else:
                 
-                # Update sample size
-                prmc.parameters[var].value = inst['sample_size'][var.name]
-                
-                print('New value:', prmc.parameters[var].value)
-                
-                CVX_GRB.update_parameter(prmc, var)
+                prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose = args.verbose)
+            
+                CVX_GRB = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)            
             
             # RESULTS.append({'Solution': SOL,
             #                 'Paramaters': PARAM_NAMES,

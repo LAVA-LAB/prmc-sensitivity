@@ -193,6 +193,8 @@ class PRMC:
             probabilities = np.array([float(t.value().evaluate(inst['point'])) for t in SA.parametricTrans])
             successors = SA.successors
             
+            # print('New point estimate for {} is: {}'.format(var.name, probabilities))
+            
             if len(successors) == 1:
                 
                 SA.model = distribution(successors, probabilities)

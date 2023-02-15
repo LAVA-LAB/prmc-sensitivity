@@ -1,4 +1,4 @@
-# %run "~/documents/sensitivity-prmdps/prmdp-sensitivity-git/run_cav23.py"
+# %run "~/documents/CAV23/prmdp-sensitivity/run_cav23.py"
 
 from core.main_pmc import run_pmc
 from core.main_prmc import run_prmc
@@ -20,6 +20,8 @@ args.root_dir = os.path.dirname(os.path.abspath(__file__))
 args.model = 'models/slipgrid/double_pmc_size=10_params=10_seed=0.drn'
 args.parameters = 'models/slipgrid/double_pmc_size=10_params=10_seed=0_mle.json'
 args.formula = 'Rmin=? [F "goal"]'
+
+args.num_deriv = 10
 
 # args.model = 'models/pdtmc/brp16_2.pm'
 # args.formula = 'P=? [ F s=5 ]'

@@ -253,10 +253,6 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
                     M.states_dict[s.id].actions_dict[a.id].deterministic = True
                     M.states_dict[s.id].actions_dict[a.id].robust = False
                     
-                    # Set adjacency matrix entries
-                    for succ, prob in zip(successors, probabilities):
-                        M.distr_pre_state[succ].add((s.id, a.id, prob))
-                    
                     M.states_dict[s.id].actions_dict[a.id].model = \
                             distribution(successors, probabilities)
                 
@@ -295,6 +291,8 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
                         
                         w = M.parameters[v]
                         A, b = uncertainty_model(probabilities, args.robust_confidence, w)
+                    
+                    '''
                     else:
                         
                         if (s,a) not in M.parameters:
@@ -302,6 +300,7 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
                         
                         w = M.parameters[(s,a)]
                         A, b = uncertainty_model(probabilities, w)
+                    '''
                     
                     M.states_dict[s.id].actions_dict[a.id].model = polytope(A, b, uncertainty_model, w, args.robust_confidence)
 
@@ -319,6 +318,7 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
         # Set action iterator
         M.states_dict[s.id].set_action_iterator()
 
+    '''
     # Remove parameters that do not appear anywhere in the model
     delete = []
     for th in M.parameters_pmc:
@@ -329,13 +329,11 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
             
     for d in delete:
         del M.parameters[d]
+    '''
     
-    iters = sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
+    # iters = sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
 
     # set state iterator
     M.set_state_iterator()
-    
-    # Give an index to every parameter
-    M.par_idx2tuple = list(M.parameters.keys())
     
     return M
