@@ -263,8 +263,8 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
                     M.states_dict[s.id].actions_dict[a.id].robust = True
                     
                     # Set adjacency matrix entries
-                    for dim,succ in enumerate(successors):
-                        M.poly_pre_state[succ].add((s.id, a.id, dim))
+                    # for dim,succ in enumerate(successors):
+                    #     M.poly_pre_state[succ].add((s.id, a.id, dim))
                     
                     M.stateAction2param[(s.id, a.id)] = list(involved_pmc_parameters)
                     
@@ -308,13 +308,6 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
                     M.robust_pairs_suc[(s.id, a.id)] = len(successors)
                     M.robust_successors += len(successors)
                     
-                    # Put an (arbitrary) ordering over the dual variables
-                    M.states_dict[s.id].actions_dict[a.id].alpha_start_idx = M.robust_constraints
-                    M.robust_constraints += len(b)
-                    
-                    
-                    
-                    
         # Set action iterator
         M.states_dict[s.id].set_action_iterator()
 
@@ -335,5 +328,8 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
 
     # set state iterator
     M.set_state_iterator()
+    
+    # Set an ordering over the robust constraints
+    M.set_robust_constraints()
     
     return M

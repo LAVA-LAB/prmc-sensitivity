@@ -149,8 +149,8 @@ class PRMC:
         self.robust_successors = 0
         
         # Adjacency matrix between successor states and polytope constraints
-        self.poly_pre_state = {s: set() for s in range(num_states)}
-        self.distr_pre_state = {s: set() for s in range(num_states)}
+        # self.poly_pre_state = {s: set() for s in range(num_states)}
+        # self.distr_pre_state = {s: set() for s in range(num_states)}
         
     def __str__(self):
         
@@ -194,6 +194,7 @@ class PRMC:
             successors = SA.successors
             
             # print('New point estimate for {} is: {}'.format(var.name, probabilities))
+            # print('b before:', SA.model.b)
             
             if len(successors) == 1:
                 
@@ -204,6 +205,21 @@ class PRMC:
                 # Update probability distribution
                 SA.model.update_point(probabilities)
                 
+            # print('b after:', SA.model.b)
+                
+    def set_robust_constraints(self):
+        
+        self.robust_constraints = 0
+        
+        for s in self.states:
+            for a in s.actions:
+                if a.robust:
+                
+                    # Put an (arbitrary) ordering over the dual variables
+                    a.alpha_start_idx = self.robust_constraints
+                    self.robust_constraints += len(a.model.b)
+                    
+        return
                 
 
 class state:

@@ -9,7 +9,7 @@ import numpy as np
 from numpy.linalg import inv
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-from scikits.umfpack import spsolve as spsolve_umf
+# from scikits.umfpack import spsolve as spsolve_umf
 import cvxpy as cp
 from core.commons import tocDiff
 from core.commons import valuate, deriv_valuate
@@ -62,7 +62,7 @@ class gradient:
             for ss_id in succ:
                 A21_row += [i]
                 A21_col += [ss_id]
-                if robust_bound == 'lower':
+                if self.robust_bound == 'lower':
                     A21_val += [1]
                 else:
                     A21_val += [-1]
@@ -84,7 +84,7 @@ class gradient:
             j = s.actions_dict[a_id].alpha_start_idx
             b = s.actions_dict[a_id].model.b
             
-            if robust_bound == 'lower':
+            if self.robust_bound == 'lower':
                 A12_vals = M.discount * s.policy[a_id] * valuate(b)
             else:
                 A12_vals = -M.discount * s.policy[a_id] * valuate(b)
@@ -96,7 +96,7 @@ class gradient:
                 
             A13_row += [s_id]
             A13_col += [i]
-            if robust_bound == 'lower':
+            if self.robust_bound == 'lower':
                 A13_val += [M.discount * s.policy[a_id]]
             else:
                 A13_val += [-M.discount * s.policy[a_id]]
@@ -112,6 +112,9 @@ class gradient:
     
     
     def update(self, M, CVX, mode):
+        
+        # Check if the size of the PRMC agrees with the size of the cvx problem
+        assert len(CVX.keepalpha) + len(CVX.keeplambda) == M.robust_constraints
         
         # Completely remove dual variables lambda and nu
         if mode == 'remove_dual':
@@ -273,7 +276,7 @@ def solve_eqsys(J, Ju):
     print('Compute gradients via linear equation system...')
     
     tocDiff(False)
-    gradients = spsolve_umf(J, -Ju)
+    gradients = spsolve(J, -Ju)
     time = tocDiff(False)
     
     return gradients, time

@@ -1,0 +1,95 @@
+// Exported by generate_slipgrid_pmc.py
+// Original model type: DTMC
+@type: DTMC
+@parameters
+v0 v1 v2
+@reward_models
+
+@nr_states
+17
+@nr_choices
+17
+@model
+state 0 [0] init
+	action 0 [1]
+		0 : 1/2*(v0)
+		1 : 1/2
+		2 : 1/2*(1-v0)
+state 1 [0] 
+	action 0 [1]
+		1 : 1/2*(v1)
+		3 : 1/2*(1-v1)
+		10 : 1/2
+state 2 [0] 
+	action 0 [1]
+		2 : 1/2*(v1)
+		3 : 1/2
+		5 : 1/2*(1-v1)
+state 3 [0] 
+	action 0 [1]
+		3 : 1/2*(v1)
+		4 : 1/2
+		6 : 1/2*(1-v1)
+state 4 [0] 
+	action 0 [1]
+		2 : 1/2
+		4 : 1/2*(v2)
+		7 : 1/2*(1-v2)
+state 5 [0] 
+	action 0 [1]
+		0 : 1/2*(1-v0)
+		5 : 1/2*(v0)
+		6 : 1/2
+state 6 [0] 
+	action 0 [1]
+		1 : 1/2*(1-v2)
+		6 : 1/2*(v2)
+		7 : 1/2
+state 7 [0] 
+	action 0 [1]
+		5 : 1/2
+		7 : 1/2*(v0)
+		10 : 1/2*(1-v0)
+state 8 [0] 
+	action 0 [1]
+		8 : 1/2*(v0)
+		9 : 1/2
+		11 : 1/2*(1-v0)
+state 9 [0] 
+	action 0 [1]
+		9 : 1/2*(v1)
+		10 : 1/2
+		12 : 1/2*(1-v1)
+state 10 [0] package
+	action 0 [1]
+		8 : 1/2
+		10 : 1/2*(v0)
+		13 : 1/2*(1-v0)
+state 11 [0] 
+	action 0 [1]
+		11 : 1/2*(v1)
+		12 : 1/2
+		14 : 1/2*(1-v1)
+state 12 [0] 
+	action 0 [1]
+		12 : 1/2*(v1)
+		13 : 1/2
+		15 : 1/2*(1-v1)
+state 13 [0] 
+	action 0 [1]
+		11 : 1/2
+		13 : 1/2*(v2)
+		16 : 1/2*(1-v2)
+state 14 [0] goal
+	action 0 [0]
+		14 : 1
+state 15 [0] 
+	action 0 [1]
+		9 : 1/2*(1-v2)
+		15 : 1/2*(v2)
+		16 : 1/2
+state 16 [0] 
+	action 0 [1]
+		10 : 1/2*(1-v0)
+		14 : 1/2
+		16 : 1/2*(v0)

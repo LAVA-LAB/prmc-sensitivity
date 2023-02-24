@@ -3,7 +3,7 @@ import stormpy
 from core.commons import valuate
 from scipy.linalg import solve
 
-def dtmc_worstcase(prmc, instantiated_model, active_constraints):
+def dtmc_active_bounds(prmc, instantiated_model, active_constraints):
     
     for s in instantiated_model.states:
         
@@ -29,6 +29,8 @@ def dtmc_worstcase(prmc, instantiated_model, active_constraints):
             A_active = np.concatenate(( A[active, :], A_one ))
             b_active = np.concatenate(( b[active], b_one ))
             
+            # print(A_active, b_active)
+            
             # Get worst-case point
             worstcase_point = solve(A_active, b_active)
             
@@ -38,19 +40,29 @@ def dtmc_worstcase(prmc, instantiated_model, active_constraints):
             
             # Update probabilities in dtmc with worst-case point
             for i,t in enumerate(a.transitions):
+                # check if successor states agree
+                assert t.column == a_prmc.successors[i]
+                
                 t.set_value(worstcase_point[i])
                 
+            # print(s,a,'-',worstcase_point)
+            # print(b)
+            # print(A)
+            
+            # assert False
+            
     return instantiated_model
+
 
 def parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB):
     
     instantiated_model, _ = pmc.instantiate(inst['valuation'])
     
-    dtmc = dtmc_worstcase(prmc, instantiated_model, CVX_GRB.active_constraints)
+    dtmc = dtmc_active_bounds(prmc, instantiated_model, CVX_GRB.active_constraints)
     
     expected_number_of_visits = stormpy.compute_expected_number_of_visits(stormpy.Environment(),
-                                                                          dtmc)
-
+                                                                          instantiated_model)
+    
     importance = {}
 
     for s in instantiated_model.states:
@@ -61,6 +73,8 @@ def parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB):
             
             for v in prmc.stateAction2param[(s.id, a.id)]:
                 
+                # print('Visits s={}: {}'.format(s.id, expected_number_of_visits.at(s.id)))
+                
                 #imp = expected_number_of_visits.at(s.id) / inst['sample_size'][v.name]
                 imp = expected_number_of_visits.at(s.id) * np.sqrt(1/inst['sample_size'][v.name])
                 
@@ -69,4 +83,6 @@ def parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB):
                 else:
                     importance[v] = imp
                     
-    return importance
+    # print(importance)
+           
+    return importance, dtmc

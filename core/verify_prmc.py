@@ -38,7 +38,7 @@ class cvx_verification_gurobi:
         else:
             penalty = M.beta_penalty * gp.quicksum([bet for bet in self.beta.values()])
         
-        if robust_bound == 'lower':
+        if self.robust_bound == 'lower':
             self.cvx.setObjective(self.x[M.sI['s']] @ M.sI['p'] - penalty, GRB.MAXIMIZE)
         else:
             self.cvx.setObjective(self.x[M.sI['s']] @ M.sI['p'] + penalty, GRB.MINIMIZE)
@@ -80,14 +80,6 @@ class cvx_verification_gurobi:
                     # Add constraints for an uncertain probability distribution
                     bXalpha = [b.val()*alph if isinstance(b, polynomial) else b*alph
                                for b,alph in zip(a.model.b, self.alpha[(s.id, a.id)])]
-                    
-                    # print(a.model.A.T)
-                    # print(self.alpha[(s.id, a.id)])
-                    
-                    # print(a.model.A.T @ self.alpha[(s.id, a.id)])
-                    # print(- self.x[a.successors])
-                    # print(self.beta[(s.id, a.id)])
-                    # print('\n')
                     
                     if self.robust_bound == 'lower':
                     
@@ -180,7 +172,9 @@ class cvx_verification_gurobi:
         return grad_numerical
         
     
-    def check_complementary_slackness(self, M):
+    def check_complementary_slackness(self, M, verbose = False):
+        
+        violated = False
         
         # Slack of 1 means lambda is nonzero; Slack of -1 means alpha is nonzero
         self.keeplambda = [[]] * len(self.alpha)
@@ -202,16 +196,16 @@ class cvx_verification_gurobi:
             # If both lambda and alpha are zero (anywhere), complementary
             # slackness is violated
             
-            lambda_zero = np.abs(self.alpha_dual[(s, a)]) < 1e-12
+            lambda_zero = np.abs(self.alpha_dual[(s, a)]) < 1e-15
             # lambda_zero = np.abs(self.cns[('ineq', s, a)].Pi) < 1e-12
             
-            alpha_zero  = np.abs(self.alpha_primal[(s, a)]) < 1e-12
+            alpha_zero  = np.abs(self.alpha_primal[(s, a)]) < 1e-15
             slacksum = np.sum([lambda_zero, alpha_zero], axis=0)
             
             self.active_constraints[(s, a)] = ~alpha_zero
             
             # If the sum is 2 anywhere, than throw an error
-            if np.any(slacksum == 2):
+            if np.any(slacksum == 2) and verbose:
                 print('\nERROR: lambda[i] > 0 XOR alpha[i] > 0 must be true for each i')
                 print('This assumption was not met for state {} and action {}'.format(s,a))
                 print('- Lambda is {}'.format(self.alpha_dual[(s, a)]))
@@ -219,44 +213,15 @@ class cvx_verification_gurobi:
                 print('- Beta is {}'.format(self.beta[(s,a)].X))
                 print('Abort...')
                 
-                return False
+                violated = True
                 
-            self.keepalpha[i] = lambda_zero
+            self.keepalpha[i] = ~alpha_zero
             self.keeplambda[i] = alpha_zero
-            
-            # active_constraints = sum(self.keepalpha[i])
-            # successors = len(M.states_dict[s].actions_dict[a].successors)
-            
-            # too_many = active_constraints + 1 - successors
-            
-            
-            # if too_many > 0:
-            #     print('ERROR! Too many active constraints',too_many)
-                
-            #     active_idxs = np.where(self.keepalpha[i] == True)[0]
-            #     disable = np.array(active_idxs[:too_many], dtype=int)
-                
-            #     # print(active_idxs, too_many)
-            #     # print(disable)
-            #     # print(self.keepalpha)
-            #     # print(self.keepalpha[i][disable])
-                
-            #     # Reduce the number of activate constraints manually
-            #     # By setting some alpha values to zero..
-            #     self.keepalpha[i][disable] = False
-                
-            # elif too_many < 0:
-            #     print('ERROR! Too few active constraints',too_many)
-                
-            #     inactive_idxs = np.where(self.keepalpha[i] == False)[0]
-            #     enable = np.array(inactive_idxs[:np.abs(too_many)], dtype=int)
-                
-            #     # Reduce the number of activate constraints manually
-            #     # By setting some alpha values to zero..
-            #     self.keepalpha[i][enable] = True
-                
             
         self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]
         self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
         
-        return True
+        if violated:
+            return False
+        else:
+            return True

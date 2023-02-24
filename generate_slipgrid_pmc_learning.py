@@ -2,7 +2,6 @@
 
 import numpy as np
 import json
-import stormpy
 import os
 import math
 from pathlib import Path
@@ -65,6 +64,9 @@ def gen_pMDP_random_drn(N, terrain, model_name,
                     
                 elif (x,y) == loc_warehouse and z == 1:
                     label = 'goal'
+                    
+                elif (x,y) == loc_package and z == 1:
+                    label = 'package'
                     
                 else:
                     label = ''
@@ -209,7 +211,7 @@ def gen_pMDP_random_drn(N, terrain, model_name,
                             else:
                                 z_slip = z
                                 
-                            s_slip = xyz_to_plain_state(x_slip, y_slip, z_slip, X, Y)        
+                            s_slip = xyz_to_plain_state(x, y, z, X, Y)        
                             
                             if s_slip > s_package:
                                 s_slip -= 1
@@ -244,36 +246,34 @@ def gen_pMDP_random_drn(N, terrain, model_name,
 np.random.seed(0)
 
 cases = [
-    (20,    100),
+    (20,   100),
     ]
 
 p_range = [0.10, 0.50]
 
-# Number of parameters to estimate probabilities with
+# Number of samples to estimate probabilities with
 Nmin = 100
 Nmax = 100
 
-ITERS = 1
+SEEDS = [0]
 BIAS = True
 
-NUM = [10]
 dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
 
-for num_derivs in NUM:
-  for (Z,V) in cases:
+for (Z,V) in cases:
     for mode in ['double']:
       
         N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
           
-        for seed in range(ITERS):
+        for seed in SEEDS:
                     
-            np.random.seed(0)
+            np.random.seed(seed)
                     
             model_name = "models/slipgrid_learning/{}_pmc_size={}_params={}_seed={}".format(mode,Z,V,seed)
             
             # By default, put package in top right corner and warehouse in bottom left
-            loc_package   = (Z-2, 1)
-            loc_warehouse = (1, Z-2)
+            loc_package   = (Z-1, 0)
+            loc_warehouse = (0, Z-1)
             
             if V > Z**2:
                 print('Skip configuration, because no. params exceed no. states.')
