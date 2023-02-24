@@ -61,7 +61,7 @@ def parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB):
     dtmc = dtmc_active_bounds(prmc, instantiated_model, CVX_GRB.active_constraints)
     
     expected_number_of_visits = stormpy.compute_expected_number_of_visits(stormpy.Environment(),
-                                                                          instantiated_model)
+                                                                          dtmc)
     
     importance = {}
 

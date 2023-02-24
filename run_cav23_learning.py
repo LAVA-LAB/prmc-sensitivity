@@ -81,6 +81,11 @@ DFs_stats = {}
 import time
 for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random']:
     
+    if mode in ['expVisits', 'expVisits_sampling']:
+        optim = True
+    else:
+        optim = False
+    
     DFs[mode] = pd.DataFrame()
     
     for seed in SEEDS:
@@ -99,8 +104,13 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
         prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose = args.verbose)
         
         CVX_GRB = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)
+        CVX_GRB.cvx.tune()
+        CVX_GRB.cvx.getTuneResult(0)
         
-        # CVX_GRB_opt = cvx_verification_gurobi(prmc, pmc.reward, 'lower', verbose = args.verbose)
+        if optim:
+            CVX_GRB_opt = cvx_verification_gurobi(prmc, pmc.reward, 'lower', verbose = args.verbose)
+            CVX_GRB_opt.cvx.tune()
+            CVX_GRB_opt.cvx.getTuneResult(0)
         
         for i in range(MAX_STEPS):
         
@@ -108,8 +118,8 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
         
             ##### PARAMETER IMPORTANCE    
             
-            CVX_GRB.cvx.Params.Method = 5
-            CVX_GRB.cvx.Params.Seed = 0   
+            # CVX_GRB.cvx.Params.Method = 5
+            # CVX_GRB.cvx.Params.Seed = 0   
             
             # CVX_GRB.cvx.Params.NumericFocus = 3
             # CVX_GRB.cvx.Params.ScaleFlag = 1
@@ -126,12 +136,9 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
             
             SLACK = CVX_GRB.check_complementary_slackness(prmc, verbose=True)
             
-            # CVX_GRB_opt.cvx.Params.Method = 5
-            # CVX_GRB_opt.cvx.Params.Seed = 0   
-            # CVX_GRB_opt.cvx.Params.NumericFocus = 3
-            # CVX_GRB_opt.cvx.Params.ScaleFlag = 1
-            # CVX_GRB_opt.solve(store_initial = True, verbose=args.verbose)
-            # SLACK = CVX_GRB_opt.check_complementary_slackness(prmc, verbose=True)
+            if optim:
+                CVX_GRB_opt.solve(store_initial = True, verbose=args.verbose)
+                SLACK = CVX_GRB_opt.check_complementary_slackness(prmc, verbose=True)
             
             # Switch between random parameter choice or via derivative
             if mode == 'random':
@@ -157,7 +164,7 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
                 
                 print('Sample based on importance factor (expVisits * intervalWidth...')
                 
-                importance, dtmc = parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB)
+                importance, dtmc = parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB_opt)
                 PAR = [max(importance, key=importance.get)]
                 
             elif mode == 'expVisits_sampling':
@@ -241,7 +248,9 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
                     prmc.update_distribution(var, inst)
                     
                     CVX_GRB.update_parameter(prmc, var)
-                    # CVX_GRB_opt.update_parameter(prmc, var)
+                    
+                    if optim:
+                        CVX_GRB_opt.update_parameter(prmc, var)
                     
                     # Update ordering over robust constraints
                     prmc.set_robust_constraints()
@@ -251,7 +260,9 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
                 prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose = args.verbose)
             
                 CVX_GRB = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)   
-                CVX_GRB_opt = cvx_verification_gurobi(prmc, pmc.reward, 'lower', verbose = args.verbose)                    
+                
+                if optim:
+                    CVX_GRB_opt = cvx_verification_gurobi(prmc, pmc.reward, 'lower', verbose = args.verbose)                    
         
         DFs[mode] = pd.concat([DFs[mode], pd.Series(SOL_LIST)], axis=1)
         
