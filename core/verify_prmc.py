@@ -90,7 +90,7 @@ class cvx_verification_gurobi:
                             a.model.A.T @ self.alpha[(s.id, a.id)] \
                             + self.x[a.successors] \
                             + self.beta[(s.id, a.id)] == 0,
-                            name='({}, {})'.format(int(s.id), int(a.id))
+                            name='({},{})'.format(int(s.id), int(a.id))
                             )
                             
                     else:
@@ -102,7 +102,7 @@ class cvx_verification_gurobi:
                             a.model.A.T @ self.alpha[(s.id, a.id)] \
                             - self.x[a.successors] \
                             + self.beta[(s.id, a.id)] == 0,
-                            name='({}, {})'.format(int(s.id), int(a.id))
+                            name='({},{})'.format(int(s.id), int(a.id))
                             )
                 
                     # self.cns[('ineq', s.id, a.id)] = self.cvx.addConstr(self.alpha[(s.id, a.id)] >= 0)
@@ -118,31 +118,44 @@ class cvx_verification_gurobi:
             self.cns[s.id] = self.cvx.addConstr(self.x[s.id] == self.R[s.id] + M.discount * RHS, name=str(s.id))
             
     
-    def update_parameter(self, M, var):
+    def update_parameter(self, M, var, verbose = False):
         '''
         Update constraints related to a single parameter
         '''
         
-        for (s,a) in M.param2stateAction[ var ]:
+        #TODO only remove constraint if it has really changed. Can this be optimized?
+        
+        s_update = np.unique(np.array(M.param2stateAction[ var ])[:,0])
+        
+        for s in s_update:
+            
+            if verbose:
+                print('For state #{}'.format(s))
+            
             state = M.states_dict[s]
-            action = state.actions_dict[a]
             
             cnstr = self.cvx.getConstrByName(str(s))
             self.cvx.remove(cnstr)
             
-            if (s,a) in self.cns:
+            for action in state.actions:
+                a = action.id        
                 
+                if verbose:
+                    print('Remove state-action pair ({},{})'.format(s, a))
                 
-                for name in self.alpha[(s, a)]:
-                    self.cvx.remove(name)
+                if (s,a) in self.cns:
                     
-                
-                for n in range(len(action.successors)):
                     
-                    name = '({}, {})[{}]'.format(int(s), int(a), n)
-                    cnstr = self.cvx.getConstrByName(name)                
-                    self.cvx.remove(cnstr)
-            
+                    for name in self.alpha[(s, a)]:
+                        self.cvx.remove(name)
+                        
+                    
+                    for n in range(len(action.successors)):
+                        
+                        name = '({},{})[{}]'.format(int(s), int(a), n)
+                        cnstr = self.cvx.getConstrByName(name)                
+                        self.cvx.remove(cnstr)
+                
             self.add_state_constraint(state, M)
     
     
@@ -215,7 +228,7 @@ class cvx_verification_gurobi:
                 
                 violated = True
                 
-            self.keepalpha[i] = ~alpha_zero
+            self.keepalpha[i] = lambda_zero #~alpha_zero
             self.keeplambda[i] = alpha_zero
             
         self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]

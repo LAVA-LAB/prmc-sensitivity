@@ -1,7 +1,7 @@
 import argparse
 from ast import literal_eval
 
-def parse_inputs(manualModel=None):
+def parse_main(manualModel=None):
     """
     Function to parse arguments provided
 
@@ -30,6 +30,10 @@ def parse_inputs(manualModel=None):
     # Path to parameter valuation file to load
     parser.add_argument('--parameters', type=str, action="store", dest='parameters', 
                         default=False, help="Path to parameter valuation file")
+    
+    # Path to parameter valuation file to load
+    parser.add_argument('--true_param_file', type=str, action="store", dest='true_param_file', 
+                        default=False, help="Path to True parameter valuation file (used for learning experiments)")
     
     # Temporal logic formula
     parser.add_argument('--formula', type=str, action="store", dest='formula', 

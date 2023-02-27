@@ -52,7 +52,7 @@ def run_prmc(pmc, args, inst, verbose):
         
         print('Check complementary slackness...')
         
-        if not CVX_GRB.check_complementary_slackness(prmc):
+        if not CVX_GRB.check_complementary_slackness(prmc, verbose=True):
             # Check if complementary slackness is satisfied
             if trials < trials_max:
                 trials += 1
@@ -247,7 +247,7 @@ def pmc2prmc(model, pmc_parameters, point, sample_size, args, verbose):
                     var = t.value().gather_variables()
                     involved_pmc_parameters.update(var)
                 
-                if len(successors) == 1:
+                if len(successors) == 1 or len(involved_pmc_parameters) == 0:
                     
                     # Deterministic transition (no uncertainty model)
                     M.states_dict[s.id].actions_dict[a.id].deterministic = True
