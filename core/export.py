@@ -5,6 +5,10 @@ from datetime import datetime
 from core.classes import PMC, PRMC
 import sys
 
+class timer:
+    def __init__(self):
+        self.times = {}
+
 def export_json(args, MODEL, T, inst, solution, deriv, parameters = None):
 
     # Export results
@@ -38,19 +42,18 @@ def export_json(args, MODEL, T, inst, solution, deriv, parameters = None):
            'Parameters': len(inst['valuation']),
            #
            'Solution': np.round(solution, 6),
-           'Model parse [s]': np.round(T['parse_model'], 6),
-           'Model instantiate [s]': np.round(T['instantiate'], 6),
-           'Model verify [s]': np.round(T['verify'], 6),
+           'Model instantiate [s]': np.round(T.times['instantiate'], 6),
+           'Model verify [s]': np.round(T.times['verify'], 6),
            #
            'Num. derivatives': args.num_deriv
            }
     
     if args.explicit_baseline:
-        OUT['Differentiate one [s]'] = np.round(T['solve_explicit_one'], 6)
-        OUT['Differentiate explicitly [s]'] = np.round(T['solve_explicit_all'], 3)
+        OUT['Differentiate one [s]'] = np.round(T.times['solve_explicit_one'], 6)
+        OUT['Differentiate explicitly [s]'] = np.round(T.times['solve_explicit_all'], 3)
     
-    OUT['LP (define matrices) [s]'] = np.round(T['build_matrices'], 6)
-    OUT['LP (solve) [s]'] = np.round(T['solve_LP'], 6)
+    OUT['LP (define matrices) [s]'] = np.round(T.times['build_matrices'], 6)
+    OUT['LP (solve) [s]'] = np.round(T.times['solve_LP'], 6)
     
     if args.num_deriv > 1:
         OUT['Max. derivatives'] = list(np.round(deriv['LP'], 6))

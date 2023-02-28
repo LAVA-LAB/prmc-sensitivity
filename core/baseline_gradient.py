@@ -3,7 +3,7 @@ import scipy.sparse as sparse
 import time
 import random
 
-def explicit_gradient(pmc, args, J, Ju):
+def explicit_gradient(pmc, args, J, Ju, T = False):
         
     start_time = time.time()
     
@@ -18,7 +18,8 @@ def explicit_gradient(pmc, args, J, Ju):
         
         deriv_expl[i] = sparse.linalg.spsolve(J, -Ju[:,q])[pmc.sI['s']] @ pmc.sI['p']
         
-    time_solve_explicit_one = (time.time() - start_time) / len(sample_idxs)
-    time_solve_explicit_all = time_solve_explicit_one * len(pmc.parameters)
+    if T:
+        T.times['solve_explicit_one'] = (time.time() - start_time) / len(sample_idxs)
+        T.times['solve_explicit_all'] = T.times['solve_explicit_one'] * len(pmc.parameters)
     
-    return deriv_expl, time_solve_explicit_one, time_solve_explicit_all
+    return deriv_expl

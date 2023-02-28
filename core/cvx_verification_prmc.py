@@ -185,9 +185,45 @@ class cvx_verification_gurobi:
         return grad_numerical
         
     
+    def get_active_constraints(self, M, verbose = False):
+    
+        self.keeplambda = [[]] * len(self.alpha)
+        self.keepalpha = [[]] * len(self.alpha)
+    
+        self.cns_dual = [self.cns[s].Pi for s in range(len(M.states))]
+        
+        self.active_constraints = {}
+        
+        # Check if assumption is satisfied
+        for i,(s,a) in enumerate(self.alpha.keys()):
+            
+            # Active constraint if alpha is nonzero
+            alpha_nonzero = np.abs(self.alpha[(s, a)].X) >= 1e-12
+            
+            self.active_constraints[(s, a)] = alpha_nonzero
+            
+            num_successors = len(M.states_dict[s].actions_dict[a].successors)
+            if not sum(alpha_nonzero) == num_successors - 1:
+                if verbose:
+                    print('Error: bad number of active constraints encountered')
+                    print('Alpha values:', self.alpha[(s, a)].X)
+                    print('Active constraints:', alpha_nonzero)
+                    print('Number of successor states:', num_successors)
+            
+            self.keepalpha[i]  = alpha_nonzero
+            self.keeplambda[i] = ~alpha_nonzero
+            
+        self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]
+        self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
+    
+    
+    
     def check_complementary_slackness(self, M, verbose = False):
         
+        from core.commons import valuate, deriv_valuate
+        
         violated = False
+        repair = True
         
         # Slack of 1 means lambda is nonzero; Slack of -1 means alpha is nonzero
         self.keeplambda = [[]] * len(self.alpha)
@@ -200,6 +236,8 @@ class cvx_verification_gurobi:
         
         self.active_constraints = {}
         
+        
+        
         # Check if assumption is satisfied
         for i,(s,a) in enumerate(self.alpha.keys()):
             
@@ -209,22 +247,32 @@ class cvx_verification_gurobi:
             # If both lambda and alpha are zero (anywhere), complementary
             # slackness is violated
             
-            lambda_zero = np.abs(self.alpha_dual[(s, a)]) < 1e-15
+            lambda_zero = np.abs(self.alpha_dual[(s, a)]) < 1e-12
             # lambda_zero = np.abs(self.cns[('ineq', s, a)].Pi) < 1e-12
             
-            alpha_zero  = np.abs(self.alpha_primal[(s, a)]) < 1e-15
+            alpha_zero  = np.abs(self.alpha_primal[(s, a)]) < 1e-12
             slacksum = np.sum([lambda_zero, alpha_zero], axis=0)
             
             self.active_constraints[(s, a)] = ~alpha_zero
             
+            print(self.alpha_dual[(s, a)])
+            print(self.alpha_primal[(s, a)])
+            print(lambda_zero,'--',alpha_zero)
+            print(slacksum)
+            
             # If the sum is 2 anywhere, than throw an error
-            if np.any(slacksum == 2) and verbose:
-                print('\nERROR: lambda[i] > 0 XOR alpha[i] > 0 must be true for each i')
-                print('This assumption was not met for state {} and action {}'.format(s,a))
-                print('- Lambda is {}'.format(self.alpha_dual[(s, a)]))
-                print('- Alpha is {}'.format(self.alpha[(s,a)].X))
-                print('- Beta is {}'.format(self.beta[(s,a)].X))
-                print('Abort...')
+            if np.any(slacksum == 2):
+                if verbose:
+                    print('\nERROR: lambda[i] > 0 XOR alpha[i] > 0 must be true for each i')
+                    print('This assumption was not met for state {} and action {}'.format(s,a))
+                    print('- Lambda is {}'.format(self.alpha_dual[(s, a)]))
+                    print('- Alpha is {}'.format(self.alpha[(s,a)].X))
+                    print('- Beta is {}'.format(self.beta[(s,a)].X))
+                    
+                    print('A matrix:', M.states_dict[s].actions_dict[a].model.A)
+                    print('b vector:', valuate(M.states_dict[s].actions_dict[a].model.b))
+                    
+                    print('Abort...')
                 
                 violated = True
                 
@@ -238,3 +286,7 @@ class cvx_verification_gurobi:
             return False
         else:
             return True
+        
+    def tie_break_activate_constraints(self):
+        
+        return

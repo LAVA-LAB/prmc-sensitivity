@@ -1,5 +1,3 @@
-from core.main_pmc import run_pmc
-
 from core.main_prmc import pmc2prmc
 from core.sensitivity import gradient, solve_cvx_gurobi
 from core.verify_prmc import cvx_verification_gurobi
@@ -38,7 +36,13 @@ class learner:
         
         self.CVX = cvx_verification_gurobi(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)
         self.CVX.cvx.tune()
-        self.CVX.cvx.getTuneResult(0)
+        try:
+            self.CVX.cvx.getTuneResult(0)
+        except:
+            print('Ecception: could not set tuning results')
+        
+        self.CVX.cvx.Params.NumericFocus = 3
+        self.CVX.cvx.Params.ScaleFlag = 1
         
         if self.opposite:
             if self.args.robust_bound == 'lower':
@@ -48,7 +52,10 @@ class learner:
             
             self.CVX_opp = cvx_verification_gurobi(self.prmc, self.pmc.reward, bound, verbose = self.args.verbose)
             self.CVX_opp.cvx.tune()
-            self.CVX_opp.cvx.getTuneResult(0)
+            try:
+                self.CVX_opp.cvx.getTuneResult(0)
+            except:
+                print('Ecception: could not set tuning results')
         
         
     def _set_sampler(self, mode):
@@ -82,13 +89,14 @@ class learner:
         self.solution_current = self.CVX.x_tilde[self.prmc.sI['s']] @ self.prmc.sI['p']
         self.solution_list += [np.round(self.solution_current, 2)]
         
+        print('Range of solutions: [{}, {}]'.format(np.min(self.CVX.x_tilde), np.max(self.CVX.x_tilde)))
         print('Solution in initial state: {}\n'.format(self.solution_current))
         
-        SLACK = self.CVX.check_complementary_slackness(self.prmc, verbose=True)
+        SLACK = self.CVX.get_active_constraints(self.prmc, verbose=False)
         
         if self.opposite:
             self.CVX_opp.solve(store_initial = True, verbose=self.args.verbose)
-            SLACK = self.CVX_opp.check_complementary_slackness(self.prmc, verbose=True)
+            SLACK = self.CVX_opp.get_active_constraints(self.prmc, verbose=True)
         
         
         
@@ -230,7 +238,9 @@ def sample_derivative(L):
     G = gradient(L.prmc, L.args.robust_bound)
     
     # Update gradient object with current solution
-    G.update(L.prmc, L.CVX, mode='reduce_dual')
+    G.update(L.prmc, L.CVX, mode='remove_dual')
+    
+    assert G.J.shape[0] == G.J.shape[1]
     
     if L.args.robust_bound == 'lower':
         direction = GRB.MAXIMIZE

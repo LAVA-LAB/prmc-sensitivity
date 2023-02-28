@@ -3,8 +3,10 @@ import json
 import stormpy
 import stormpy.core
 import stormpy._config as config
-from tabulate import tabulate
+import sys
+import time
 
+from tabulate import tabulate
 from core.uncertainty_models import Linf_polytope, L1_polytope, Hoeffding_interval
 
 class PMC:
@@ -17,7 +19,7 @@ class PMC:
         self.verbose = verbose
         
         # Load PRISM model
-        self.model, self.properties, self.parameters = self.load_prism_model(args)
+        self.model, self.properties, self.parameters = self._load_prism_model(args)
         
         if len(self.model.reward_models) == 0 and args.pMC_engine == 'spsolve':
             print('\nWARNING: verifying using spsolve requires a reward model, but none is given.')
@@ -36,7 +38,7 @@ class PMC:
                    'p': np.full(len(self.model.initial_states), 1/len(self.model.initial_states))}
         
         
-    def load_prism_model(self, args):
+    def _load_prism_model(self, args):
         
         print('Load PRISM model with STORM...')
         
@@ -63,55 +65,8 @@ class PMC:
         print("- Number of parameters: {}".format(len(parameters)))
         
         return model, properties, parameters
-        
-        
-    def load_instantiation(self, args, param_path):
-        
-        # Load parameter valuation
-        if param_path:
-            with open(str(param_path)) as json_file:
-                valuation_raw = json.load(json_file)
-                valuation = {}
-                sample_size = {}
-                
-                for v,val in valuation_raw.items():
-                    if type(val) == list:
-                        valuation[v],sample_size[v] = val
-                        
-                        sample_size[v] = int(sample_size[v])
-                        
-                    else:
-                        valuation = valuation_raw
-                        sample_size = None
-                        break
-                
-        else:
-            valuation = {}
-            sample_size = None
-            
-            for x in self.parameters:
-                valuation[x.name] = args.default_valuation
-                
-        return valuation, sample_size
-        
     
-    def instantiate(self, valuation):
-        
-        if self.model.model_type.name == 'MDP':
-            instantiator = stormpy.pars.PMdpInstantiator(self.model)
-        else:
-            instantiator = stormpy.pars.PDtmcInstantiator(self.model)
-            
-        point = dict()
-        
-        for x in self.parameters:
-            point[x] = stormpy.RationalRF(float(valuation[x.name]))
-            
-        instantiated_model = instantiator.instantiate(point)
-        
-        return instantiated_model, point
-
-
+    
     def get_parameters_to_states(self):
         
         print("- Obtain mapping from parameters to states...")
@@ -129,8 +84,8 @@ class PMC:
                         params2states[x].add(state)
                         
         return params2states
-
-
+    
+    
 
 class PRMC:
     
@@ -147,10 +102,6 @@ class PRMC:
         self.robust_pairs_suc = {}
         self.robust_constraints = 0
         self.robust_successors = 0
-        
-        # Adjacency matrix between successor states and polytope constraints
-        # self.poly_pre_state = {s: set() for s in range(num_states)}
-        # self.distr_pre_state = {s: set() for s in range(num_states)}
         
     def __str__(self):
         

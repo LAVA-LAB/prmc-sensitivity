@@ -1,4 +1,5 @@
-from core.main_pmc import run_pmc
+from core.main_pmc import run_pmc, pmc_instantiate, pmc_set_reward
+from core.classes import PMC
 from core.parser import parse_main
 import json
 
@@ -23,7 +24,7 @@ SAMPLES_PER_STEP = 25
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
-preset = 1
+preset = 0
 
 if preset == 0:
 
@@ -62,7 +63,7 @@ elif preset == 1:
 elif preset == 2:
     
     args.model = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn'
-    args.parameters = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple_mle.json'
+    # args.parameters = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple_mle.json'
     args.formula = 'P=? ["notbad" U "goal"]'
     args.pMC_engine = 'spsolve'
     args.output_folder = 'output/learning/'
@@ -70,10 +71,13 @@ elif preset == 2:
     args.robust_bound = 'upper'
     args.goal_label = 'goal' 
     
-    # args.beta_penalty = 0
+    args.default_sample_size = 1000
+    args.default_valuation = 0.5
+    
+    args.beta_penalty = 0
     args.uncertainty_model = "Hoeffding"
     
-    args.true_param_file = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple.json'
+    # args.true_param_file = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple.json'
 
 model_path = Path(args.root_dir, args.model)
 param_path = Path(args.root_dir, args.parameters) if args.parameters else False
@@ -81,22 +85,69 @@ true_param_path = Path(args.root_dir, args.true_param_file) if args.true_param_f
 
 # %%
 
+model = PMC(model_path = model_path, args = args)
+
 ### pMC execution    
-if args.true_param_file:
+inst_true = {}
+if true_param_path:
+    # Load parameter valuation
     
-    # Read true parameter values
-    with open(str(true_param_path)) as json_file:
-        true_valuation = json.load(json_file)
+    inst_true['valuation'], _ = model.load_instantiation(args = args, param_path = true_param_path)
+    
+else:
+    # Create parameter valuation
+    
+    inst_true['valuation'] = {}
+    
+    # Create parameter valuations on the spot
+    for v in model.parameters:
+        inst_true['valuation'][v.name] = args.default_valuation
+        
+        
+inst = {}
+if param_path:
+    inst['valuation'], inst['sample_size'] = model.load_instantiation(args = args, param_path = param_path)
     
 else:
     
-    true_valuation = False
+    inst['valuation'] = {}
+    inst['sample_size'] = {}
     
+    # Set seed
+    np.random.seed(0)
+    
+    # Create parameter valuations on the spot
+    for v in model.parameters:
+        
+        # Sample MLE value
+        p = inst_true['valuation'][v.name]
+        N = args.default_sample_size
+        delta = 1e-4
+        MLE = np.random.binomial(N, p) / N
+        
+        # Store
+        inst['valuation'][v.name] = max(min(MLE , 1-delta), delta)
+        inst['sample_size'][v.name] = args.default_sample_size
+
+# assert False
+
 # Compute True solution
-_, _, _, solution_true, _ = run_pmc(args, model_path, true_param_path, verbose = args.verbose)
+
+# Define instantiated pMC based on parameter valuation
+instantiated_model, T = pmc_instantiate(args, model, inst_true, verbose = args.verbose)
+pmc_set_reward(model, args, inst_true)
+
+# perturb = 1e-4*np.random.rand(len(model.reward))
+# model.reward += perturb
+
+# Verifying pMC
+_, _, solution_true, _ = run_pmc(args, model, instantiated_model, inst_true, verbose = args.verbose, T = T)
+
 print('Optimal solution under the true parameter values: {:.3f}'.format(solution_true))
 
 # TODO pmc does not do anything with a policy? Or implicitly?
+
+# assert False
 
 # %%
 
@@ -111,7 +162,15 @@ for mode in ['derivative','samples']:
         print('>>> Start iteration {} <<<'.format(seed))
         
         # Define pMC
-        pmc, _, inst, _, _ = run_pmc(args, model_path, param_path, verbose = args.verbose)
+        
+        # Define instantiated pMC based on parameter valuation
+        instantiated_model, T = pmc_instantiate(args, model, inst, verbose = args.verbose)
+        pmc_set_reward(model, args, inst)
+
+        # model.reward += perturb
+
+        # Verifying pMC
+        pmc, _, _, _ = run_pmc(args, model, instantiated_model, inst, verbose = args.verbose, T = T)
         
         print('- Create arbitrary sample sizes')
         # inst['sample_size'] = {par.name: 1000 + np.random.rand()*10 for par in pmc.parameters}
@@ -129,7 +188,7 @@ for mode in ['derivative','samples']:
             PAR = L.sample_method(L)
             
             # Get additional samples
-            L.sample(PAR, true_valuation)
+            L.sample(PAR, inst_true['valuation'])
             
             # Update learnined object
             L.update(PAR)

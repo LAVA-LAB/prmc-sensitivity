@@ -140,8 +140,8 @@ class gradient:
     
             self.Da_f = -sparse.identity(M.robust_constraints, format='csc')        
     
-            LaDa_f = sparse.diags(np.concatenate([CVX.alpha_dual[(s,a)] for (s,a) in M.robust_pairs_suc.keys()]))
-            diag_f = sparse.diags(np.concatenate([CVX.alpha_primal[(s,a)] for (s,a) in M.robust_pairs_suc.keys()]))        
+            LaDa_f = sparse.diags(np.concatenate([CVX.alpha[(s, a)].RC for (s,a) in M.robust_pairs_suc.keys()]))
+            diag_f = sparse.diags(np.concatenate([CVX.alpha[(s, a)].X for (s,a) in M.robust_pairs_suc.keys()]))        
     
             self.J = sparse.bmat([
                            [ None,      None,      None,       None,      self.A11.T,   self.A21.T ],
@@ -178,9 +178,9 @@ class gradient:
                     row[i]  = np.array([s_id])
                     col[i]  = np.array([v])
                     if self.robust_bound == 'lower':
-                        data[i] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
+                        data[i] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha[(s_id, a_id)].X])
                     else:
-                        data[i] = -np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
+                        data[i] = -np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha[(s_id, a_id)].X])
                     
                     i += 1
             
@@ -224,9 +224,9 @@ class gradient:
                     col[i+1]  = np.array([v])
                     
                     if self.robust_bound == 'lower':
-                        data[i+1] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
+                        data[i+1] = np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha[(s_id, a_id)].X])
                     else:
-                        data[i+1] = -np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha_primal[(s_id, a_id)]])
+                        data[i+1] = -np.array([M.discount * s.policy[a_id] * deriv_valuate(b, THETA) @ CVX.alpha[(s_id, a_id)].X])
                     
                     i += 2
     
