@@ -63,6 +63,9 @@ def parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB):
     expected_number_of_visits = stormpy.compute_expected_number_of_visits(stormpy.Environment(),
                                                                           dtmc)
     
+    # Invert mapping from parameters to states
+    stateAction2param = {item: [key for key in prmc.param2stateAction if item in prmc.param2stateAction[key]] for value in prmc.param2stateAction.values() for item in value}
+    
     importance = {}
 
     for s in instantiated_model.states:
@@ -71,7 +74,7 @@ def parameter_importance_exp_visits(pmc, prmc, inst, CVX_GRB):
             if instantiated_model.is_sink_state(s):
                 continue
             
-            for v in prmc.stateAction2param[(s.id, a.id)]:
+            for v in stateAction2param[(s.id, a.id)]:
                 
                 # print('Visits s={}: {}'.format(s.id, expected_number_of_visits.at(s.id)))
                 

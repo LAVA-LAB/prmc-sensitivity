@@ -3,8 +3,8 @@ from core.main_prmc import run_prmc
 from core.parse_inputs import parse_inputs
 
 from core.main_prmc import pmc2prmc
-from core.sensitivity import gradient, solve_cvx_gurobi
-from core.verify_prmc import cvx_verification_gurobi
+from core.sensitivity_prmc import gradient, solve_cvx_gurobi
+from core.verify_prmc import verify_prmc
 
 from core.learning.exp_visits import parameter_importance_exp_visits
 from core.learning.validate import validate
@@ -103,12 +103,12 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
     
         prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose = args.verbose)
         
-        CVX_GRB = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)
+        CVX_GRB = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)
         CVX_GRB.cvx.tune()
         CVX_GRB.cvx.getTuneResult(0)
         
         if optim:
-            CVX_GRB_opt = cvx_verification_gurobi(prmc, pmc.reward, 'lower', verbose = args.verbose)
+            CVX_GRB_opt = verify_prmc(prmc, pmc.reward, 'lower', verbose = args.verbose)
             CVX_GRB_opt.cvx.tune()
             CVX_GRB_opt.cvx.getTuneResult(0)
         
@@ -259,10 +259,10 @@ for mode in ['derivative', 'expVisits', 'expVisits_sampling', 'samples', 'random
                 
                 prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose = args.verbose)
             
-                CVX_GRB = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)   
+                CVX_GRB = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose = args.verbose)   
                 
                 if optim:
-                    CVX_GRB_opt = cvx_verification_gurobi(prmc, pmc.reward, 'lower', verbose = args.verbose)                    
+                    CVX_GRB_opt = verify_prmc(prmc, pmc.reward, 'lower', verbose = args.verbose)                    
         
         DFs[mode] = pd.concat([DFs[mode], pd.Series(SOL_LIST)], axis=1)
         

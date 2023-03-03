@@ -57,7 +57,7 @@ class gradient:
         A21_col = []
         A21_val = []
         i = 0
-        for (s_id,a_id) in M.robust_pairs_suc.keys():
+        for (s_id,a_id) in M.robust_successors.keys():
             succ = M.states_dict[s_id].actions_dict[a_id].successors
             for ss_id in succ:
                 A21_row += [i]
@@ -68,8 +68,9 @@ class gradient:
                     A21_val += [-1]
                 i += 1
         
+        robust_successors = sum([a for a in M.robust_successors.values()])
         self.A21 = sparse.csc_matrix((A21_val, (A21_row, A21_col)), 
-                                     shape=(M.robust_successors, len(M.states)))
+                                     shape=(robust_successors, len(M.states)))
             
         A12_row = []
         A12_col = []
@@ -78,7 +79,7 @@ class gradient:
         A13_col = []
         A13_val = []
         
-        for i, (s_id,a_id) in enumerate(M.robust_pairs_suc.keys()):
+        for i, (s_id,a_id) in enumerate(M.robust_successors.keys()):
             s = M.states_dict[s_id]
             
             j = s.actions_dict[a_id].alpha_start_idx
@@ -105,13 +106,15 @@ class gradient:
                                      shape=( len(M.states), M.robust_constraints ))
         
         self.A13 = sparse.csc_matrix((A13_val, (A13_row, A13_col)), 
-                                     shape=( len(M.states), len(M.robust_pairs_suc) ))
+                                     shape=( len(M.states), len(M.robust_successors) ))
         
-        self.A22 = sparse.block_diag([M.states_dict[s_id].actions_dict[a_id].model.A.T for (s_id,a_id) in M.robust_pairs_suc.keys() ], format='csc')
-        self.A23 = sparse.block_diag([np.ones(( n, 1 )) for n in M.robust_pairs_suc.values() ])
+        self.A22 = sparse.block_diag([M.states_dict[s_id].actions_dict[a_id].model.A.T for (s_id,a_id) in M.robust_successors.keys() ], format='csc')
+        self.A23 = sparse.block_diag([np.ones(( n, 1 )) for n in M.robust_successors.values() ])
     
     
     def update(self, M, CVX, mode):
+        
+        nr_robust_successors = sum([a for a in M.robust_successors.values()])
         
         # Check if the size of the PRMC agrees with the size of the cvx problem
         assert len(CVX.keepalpha) + len(CVX.keeplambda) == M.robust_constraints
@@ -140,8 +143,8 @@ class gradient:
     
             self.Da_f = -sparse.identity(M.robust_constraints, format='csc')        
     
-            LaDa_f = sparse.diags(np.concatenate([CVX.alpha[(s, a)].RC for (s,a) in M.robust_pairs_suc.keys()]))
-            diag_f = sparse.diags(np.concatenate([CVX.alpha[(s, a)].X for (s,a) in M.robust_pairs_suc.keys()]))        
+            LaDa_f = sparse.diags(np.concatenate([CVX.alpha[(s, a)].RC for (s,a) in M.robust_successors.keys()]))
+            diag_f = sparse.diags(np.concatenate([CVX.alpha[(s, a)].X for (s,a) in M.robust_successors.keys()]))        
     
             self.J = sparse.bmat([
                            [ None,      None,      None,       None,      self.A11.T,   self.A21.T ],
@@ -157,15 +160,16 @@ class gradient:
     
         if mode == 'remove_dual':
             
-            nr_rows = len(M.states) + M.robust_successors
+            nr_rows = len(M.states) + nr_robust_successors
             
-            iters = sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
+            iters = sum([len(a) for a in M.param2stateAction.values()])
             row = [[]]*iters
             col = [[]]*iters
             data = [[]]*iters
             i = 0
             
-            for v, (THETA_SA,THETA) in enumerate(M.parameters.items()):
+            for v, THETA_SA in enumerate(M.paramIndex):
+                THETA = M.parameters[THETA_SA]
                 
                 self.col2param[v] = THETA_SA
                 
@@ -186,7 +190,7 @@ class gradient:
             
         else:
             
-            iters = 2*sum([len(M.param2stateAction[th]) for th in M.parameters.keys()])
+            iters = sum([len(a) for a in M.param2stateAction.values()])
             row = [[]]*iters
             col = [[]]*iters
             data = [[]]*iters
@@ -195,14 +199,15 @@ class gradient:
             offset_A = len(M.states)
             
             if mode == 'reduce_dual':
-                offset_B = len(M.states) + len(M.robust_pairs_suc) + M.robust_constraints
-                nr_rows = 2*len(M.states) + len(M.robust_pairs_suc) + M.robust_constraints + M.robust_successors
+                offset_B = len(M.states) + len(M.robust_successors) + M.robust_constraints
+                nr_rows = 2*len(M.states) + len(M.robust_successors) + M.robust_constraints + nr_robust_successors
                 
             else:
-                offset_B = len(M.states) + len(M.robust_pairs_suc) + 2*M.robust_constraints
-                nr_rows = 2*len(M.states) + len(M.robust_pairs_suc) + 2*M.robust_constraints + M.robust_successors
+                offset_B = len(M.states) + len(M.robust_successors) + 2*M.robust_constraints
+                nr_rows = 2*len(M.states) + len(M.robust_successors) + 2*M.robust_constraints + nr_robust_successors
         
-            for v, (THETA_SA,THETA) in enumerate(M.parameters.items()):
+            for v, THETA_SA in enumerate(M.paramIndex):
+                THETA = M.parameters[THETA_SA]
                 
                 self.col2param[v] = THETA_SA
                 

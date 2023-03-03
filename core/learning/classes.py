@@ -1,6 +1,6 @@
 from core.main_prmc import pmc2prmc
 from core.sensitivity import gradient, solve_cvx_gurobi
-from core.verify_prmc import cvx_verification_gurobi
+from core.verify_prmc import verify_prmc
 
 from core.learning.exp_visits import parameter_importance_exp_visits
 from core.learning.validate import validate
@@ -32,9 +32,9 @@ class learner:
         self.solution_list = []
     
         # Define prMC
-        self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
+        self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
         
-        self.CVX = cvx_verification_gurobi(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)
+        self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)
         self.CVX.cvx.tune()
         try:
             self.CVX.cvx.getTuneResult(0)
@@ -50,7 +50,7 @@ class learner:
             else:
                 bound = 'lower'
             
-            self.CVX_opp = cvx_verification_gurobi(self.prmc, self.pmc.reward, bound, verbose = self.args.verbose)
+            self.CVX_opp = verify_prmc(self.prmc, self.pmc.reward, bound, verbose = self.args.verbose)
             self.CVX_opp.cvx.tune()
             try:
                 self.CVX_opp.cvx.getTuneResult(0)
@@ -149,7 +149,7 @@ class learner:
             
         else:
 
-            self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
+            self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
             self.CVX = cvx_verification_gurobi(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)   
             
         

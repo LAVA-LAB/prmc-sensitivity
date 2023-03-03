@@ -126,7 +126,11 @@ def parse_main(manualModel=None):
     # values in the `args` variable
     args = parser.parse_args()    
     
-    assert args.uncertainty_model in ['Linf', 'L1']
+    if args.goal_label is not None:
+        args.goal_label = literal_eval(args.goal_label)
+        assert type(args.goal_label) == set
+    
+    assert args.uncertainty_model in ['Linf', 'L1', 'hoeffding']
     
     assert args.pMC_engine in ['storm', 'spsolve']
     

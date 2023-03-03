@@ -1,37 +1,18 @@
 import numpy as np
-import json
-import stormpy
-import stormpy.core
 import stormpy._config as config
-import sys
-import time
 
 from tabulate import tabulate
 from core.uncertainty_models import Linf_polytope, L1_polytope, Hoeffding_interval
 
 class PMC:
     
-    def __init__(self, model_path, args,
-                 policy = 'optimal', verbose = False):
+    def __init__(self, model_path, args, verbose = False):
         
         self.model_path = model_path
-        self.policy = policy
         self.verbose = verbose
         
         # Load PRISM model
         self.model, self.properties, self.parameters = self._load_prism_model(args)
-        
-        if len(self.model.reward_models) == 0 and args.pMC_engine == 'spsolve':
-            print('\nWARNING: verifying using spsolve requires a reward model, but none is given.')
-            print('>> Switch to Storm for verifying model.\n')
-            args.pMC_engine = 'storm'
-            
-            # Storm often needs a larger perturbation delta to get reliable validation results
-            mindelta = 1e-3
-            
-            if args.validate_delta < mindelta:
-                print('>> Set parameter delta to {}'.format(mindelta))
-                args.validate_delta = mindelta
         
         # Define initial state
         self.sI = {'s': np.array(self.model.initial_states), 
@@ -93,22 +74,17 @@ class PRMC:
         
         self.states_dict = {}
         self.parameters = {}
-        self.sample_size = {}
-        self.parameters_max_value = {}
         
-        self.stateAction2param = {}
         self.param2stateAction = {}
         
-        self.robust_pairs_suc = {}
+        self.robust_successors = {}
         self.robust_constraints = 0
-        self.robust_successors = 0
         
     def __str__(self):
         
         items = {
             'No. states': len(self.states),
             'No. parameters': len(self.parameters),
-            'Robust transitions': self.robust_successors,
             'Robust constraints': self.robust_constraints,
             'Discount factor': self.discount
             }
@@ -119,7 +95,7 @@ class PRMC:
         
     def set_state_iterator(self):
         
-        self.states = self.states_dict.values()
+        self.states = list(self.states_dict.values())
         
     def set_initial_states(self, sI):
         
@@ -171,6 +147,7 @@ class PRMC:
                     self.robust_constraints += len(a.model.b)
                     
         return
+
                 
 
 class state:
@@ -183,7 +160,7 @@ class state:
 
     def set_action_iterator(self):
         
-        self.actions = self.actions_dict.values()
+        self.actions = list(self.actions_dict.values())
         
         
         
@@ -193,7 +170,6 @@ class action:
         
         self.id = id
         self.model = None # Uncertainty model
-        self.deterministic = False # Is this transition deterministic?
         self.robust = False # Action has uncertain/robust probabilities?
         self.successors = []
       

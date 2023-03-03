@@ -4,7 +4,7 @@ import cvxpy as cp
 from core.uncertainty_models import Linf_polytope, L1_polytope, Hoeffding_interval
 from core.classes import PRMC, state, action, distribution, polytope
 from core.sensitivity import gradient, solve_cvx_gurobi
-from core.cvx_verification_prmc import cvx_verification_gurobi
+from core.verify_prmc import verify_prmc
 from core.baseline_gradient import explicit_gradient
 from core.export import export_json
 
@@ -14,11 +14,9 @@ import sys
 import time
 from gurobipy import GRB
 
-def pmc2prmc(pmc_model, pmc_parameters, point, sample_size, args, verbose, T = False):
+def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args, verbose, T = False):
 
     start_time = time.time()    
-
-    scheduler = None
     
     #####
     
@@ -58,25 +56,14 @@ def pmc2prmc(pmc_model, pmc_parameters, point, sample_size, args, verbose, T = F
                     print('-- State {} is an initial state'.format(s.id))
                 M.states_dict[s.id].initial = True
                 
-            # Retrieve policy for this state
-            # If the model is not nondeterministic or not set, choose random action
-            if scheduler is None:
-                
-                num_actions = len(s.actions)
-                M.states_dict[s.id].policy = {a.id: 1/num_actions for a in s.actions}
-                
-            # Otherwise, follow provided policy
-            else:
-                choice = scheduler.get_choice(s.id)
-                act = choice.get_deterministic_choice()
-                
-                M.states_dict[s.id].policy = {act: 1}
+            # Copy scheduler/policy for this state
+            M.states_dict[s.id].policy = pmc_scheduler[s.id]
             
             # For all possible actions that are also in the policy...
             for a in s.actions:
                 
                 # Check if this action is ever chosen under the specified policy
-                if a.id not in M.states_dict[s.id].policy.keys():
+                if M.states_dict[s.id].policy[a.id] == 0:
                     continue
                 
                 if verbose:
@@ -101,10 +88,10 @@ def pmc2prmc(pmc_model, pmc_parameters, point, sample_size, args, verbose, T = F
                 
                 # If only one successor states, or if the distribution in this state-action pair is not robust
                 if len(successors) == 1 or not args.robust_probabilities[s.id]:
-                    print('Pair ({},{}) is deterministic'.format(s.id, a.id))
+                    if verbose:
+                        print('Pair ({},{}) is deterministic'.format(s.id, a.id))
                     
                     # Deterministic transition (no uncertainty model)
-                    M.states_dict[s.id].actions_dict[a.id].deterministic = True
                     M.states_dict[s.id].actions_dict[a.id].robust = False
                     
                     M.states_dict[s.id].actions_dict[a.id].model = \
@@ -114,10 +101,7 @@ def pmc2prmc(pmc_model, pmc_parameters, point, sample_size, args, verbose, T = F
                 else:
                     
                     # State is nonterminal and distribution is uncertain/robust
-                    M.states_dict[s.id].actions_dict[a.id].deterministic = False
                     M.states_dict[s.id].actions_dict[a.id].robust = True
-                    
-                    M.stateAction2param[(s.id, a.id)] = list(involved_pmc_parameters)
                     
                     M.states_dict[s.id].actions_dict[a.id].type = uncertainty_model
                     
@@ -128,11 +112,12 @@ def pmc2prmc(pmc_model, pmc_parameters, point, sample_size, args, verbose, T = F
                             M.parameters[v] = cp.Parameter(value = sample_size[v.name])
                         
                     else:
-                        print('Create parameter for ({},{})'.format(s.id, a.id))
-                        
                         # Create a new sample size parameter for each (s,a) pair
                         v = str((s.id, a.id))
                         M.parameters[v] = cp.Parameter(value = args.default_sample_size)
+                        
+                    if verbose:
+                        print('Create parameter {} for ({},{})'.format(v, s.id, a.id))
                         
                     w = M.parameters[v]
                         
@@ -153,8 +138,7 @@ def pmc2prmc(pmc_model, pmc_parameters, point, sample_size, args, verbose, T = F
                     M.states_dict[s.id].actions_dict[a.id].model = polytope(A, b, uncertainty_model, w, args.robust_confidence)
 
                     # Keep track of all robust state-action pairs
-                    M.robust_pairs_suc[(s.id, a.id)] = len(successors)
-                    M.robust_successors += len(successors)
+                    M.robust_successors[(s.id, a.id)] = len(successors)
                     
         # Set action iterator
         M.states_dict[s.id].set_action_iterator()
@@ -178,12 +162,12 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
     
     done = False
     trials = 0
-    trials_max = 1
+    trials_max = 2
     solver_verbose = args.verbose
     while not done:
 
         start_time = time.time()
-        P = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose = verbose)
+        P = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose = verbose)
         print('- Solve optimization problem...')
         
         P.cvx.Params.NumericFocus = 3
@@ -199,22 +183,24 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
         
         print('Check complementary slackness...')
         
-        if not P.check_complementary_slackness(prmc, verbose=False):
+        if P.get_active_constraints(prmc, verbose = True):
+        
+        # if P.check_complementary_slackness(prmc, verbose=True):
             # Check if complementary slackness is satisfied
             if trials < trials_max:
                 trials += 1
                 
-                prmc.beta_penalty *= 100
+                # prmc.beta_penalty *= 100
                 solver_verbose = True
                 print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...'.format(prmc.beta_penalty, trials_max-trials))
                 
                 print('- Add small delta to reward vector to break symmetry...')
-                pmc.reward += 1e-2*np.random.rand(len(pmc.reward))
+                pmc.reward += 1e-5*np.random.rand(len(pmc.reward))
                 
             else:
                 print('- Slackness not satisfied. Abort...')
                 done = True
-                sys.exit()
+                # sys.exit()
             
         else:
             print('- Slackness satisfied, proceed.')
@@ -232,7 +218,7 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
     G = gradient(prmc, args.robust_bound)
     
     # Update gradient object with current solution
-    G.update(prmc, P, mode='remove_dual')
+    G.update(prmc, P, mode='none')
     if T:
         T.times['build_matrices'] = time.time() - start_time
     
@@ -251,23 +237,18 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
     deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
                                 direction=direction, verbose=args.verbose)
     
-    deriv['LP_pars'] = np.array(list(prmc.parameters.values()))[ deriv['LP_idxs'] ]
+    deriv['LP_pars'] = np.array([prmc.parameters[sa] for sa in prmc.paramIndex[deriv['LP_idxs']]])
     
-    import cvxpy as cp
     for i,par in enumerate(deriv['LP_pars']):
-        # if isinstance(par, cp.Parameter):
         deriv['LP_pars'] = par.name()
-        # else:
-            # deriv['LP_pars'] = par.name
-    
+        
     if T:
-        T.times['solve_LP'] = time.time() - start_time   
-        print('- LP solved in: {:.3f} sec.'.format(T.times['solve_LP']))
+        T.times['derivative_LP'] = time.time() - start_time   
+        print('- LP solved in: {:.3f} sec.'.format(T.times['derivative_LP']))
     print('- Obtained derivatives are {} for parameters {}'.format(deriv['LP'],  deriv['LP_pars']))
     
     if args.explicit_baseline:
-        deriv['explicit'], = \
-            explicit_gradient(pmc, args, G.J, G.Ju, T)
+        deriv['explicit'] = explicit_gradient(pmc, args, G.J, G.Ju, T)
             
     return deriv
 
@@ -283,12 +264,10 @@ def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = F
         
         args.beta_penalty = 0
         
-        # prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose = verbose)
-        
         print('- Check parameter {}'.format(x))
         prmc.parameters[x].value += args.validate_delta
         
-        P = cvx_verification_gurobi(prmc, pmc.reward, args.robust_bound, verbose=verbose)
+        P = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose=verbose)
         
         P.cvx.Params.NumericFocus = 3
         P.cvx.Params.ScaleFlag = 1

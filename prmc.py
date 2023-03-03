@@ -1,40 +1,36 @@
 from core.classes import PMC
 
-from core.pmc_functions import pmc_load_instantiation, pmc_instantiate, pmc_get_reward
+from core.pmc_functions import pmc_load_instantiation, pmc_instantiate
+from core.verify_pmc import pmc_get_reward
 from core.export import export_json, timer
-
 from core.prmc_functions import pmc2prmc, prmc_verify, prmc_derivative_LP, prmc_validate_derivative
-
 from core.parser import parse_main
 
-import os
 from pathlib import Path
 from tabulate import tabulate
 from datetime import datetime
 
+import os
 import numpy as np
 
 # Parse arguments
 args = parse_main()
 
+# args.model = 'models/pdtmc/brp16_2.pm'
+# args.formula = 'P=? [ F s=5 ]'
+# args.default_valuation = 0.9
+# args.goal_label = {'(s = 5)'}
+
+args.model = 'models/pmdp/wlan/wlan0_param.nm'
+args.formula = 'R{"time"}max=? [ F s1=12 | s2=12 ]'
+args.default_valuation = 0.01
+args.robust_bound = 'upper'
+# args.goal_label = {'(s = 5)'}
+
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
-# args.model = 'models/slipgrid/double_pmc_size=10_params=10_seed=0.drn'
-# args.parameters = 'models/slipgrid/double_pmc_size=10_params=10_seed=0_mle.json'
-# args.formula = 'Rmin=? [F "goal"]'
-
-# args.num_deriv = 10
-
-args.model = 'models/pdtmc/brp64_4.pm'
-args.formula = 'P=? [ F s=5 ]'
-args.default_valuation = 0.9
-args.goal_label = '(s = 5)'
-
-# args.model = 'models/pmdp/CSMA/csma2_4_param.nm'
-# args.formula = 'R{"time"}max=? [ F "all_delivered" ]'
-# args.default_valuation = 0.1
-# args.goal_label = 'all_delivered'
+# args.beta_penalty = 0
 
 T = timer()
 
@@ -58,7 +54,8 @@ inst = pmc_load_instantiation(pmc, args, param_path)
 
 # Define instantiated pMC based on parameter valuation
 instantiated_model, inst['point'] = pmc_instantiate(pmc, inst['valuation'], T)
-pmc.reward = pmc_get_reward(pmc, args, inst)
+
+pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
 
 #####
 #####
@@ -79,7 +76,7 @@ args.robust_dependencies = 'none' # Can be 'none' or 'parameter'
 args.default_sample_size = 1000
 
 print('Convert pMC to prMC...')
-prmc = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, args.verbose, T)
+prmc = pmc2prmc(pmc.model, pmc.parameters, pmc.scheduler_prob, inst['point'], inst['sample_size'], args, args.verbose, T)
 
 print('Verify prMC...')
 P, solution = prmc_verify(prmc, pmc, args, args.verbose, T)
@@ -93,7 +90,7 @@ if not args.no_gradient_validation:
     deriv = prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args)
 
 if not args.no_export:
-    export_json(args, prmc, T, inst, solution, deriv, parameters = pmc.parameters)
+    export_json(args, prmc, T, inst, solution, deriv)
 
 current_time = datetime.now().strftime("%H:%M:%S")
 print('\nprMC code ended at {}\n'.format(current_time))

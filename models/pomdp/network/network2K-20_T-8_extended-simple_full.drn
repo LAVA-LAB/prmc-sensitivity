@@ -7,6 +7,8 @@ p1_0 p5_0 p6_0 p7_0 p12_0 p13_0 p14_0 p20_0 p21_0 p22_0 p28_0 p29_0 p30_0 p36_0 
 dropped_packets 
 @nr_states
 5040
+@nr_choices
+5040
 @model
 state 0 [0] goal
 	action 0 [0]

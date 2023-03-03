@@ -1,6 +1,6 @@
 import numpy as np
 from core.main_prmc import pmc2prmc
-from core.verify_prmc import cvx_verification_gurobi
+from core.verify_prmc import verify_prmc
 
 def validate(solution, validate_pars, args, pmc, inst):
 
@@ -12,9 +12,9 @@ def validate(solution, validate_pars, args, pmc, inst):
         
         args.beta_penalty = 0
         
-        prmc_val = pmc2prmc(pmc.model, pmc.parameters, inst['point'], inst['sample_size'], args, verbose=False)
+        prmc_val = pmc2prmc(pmc.model, pmc.parameters, pmc.scheduler_prob, inst['point'], inst['sample_size'], args, verbose=False)
         
-        CVX_GRB_val = cvx_verification_gurobi(prmc_val, pmc.reward, args.robust_bound, verbose = False)
+        CVX_GRB_val = verify_prmc(prmc_val, pmc.reward, args.robust_bound, verbose = False)
         
         # CVX_GRB_val.cvx.Params.NumericFocus = 3
         # CVX_GRB_val.cvx.Params.ScaleFlag = 1
