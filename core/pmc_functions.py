@@ -1,7 +1,7 @@
 from core.sensitivity import solve_cvx_gurobi
 from core.baseline_gradient import explicit_gradient
 from core.verify_pmc import verify_spsolve, verify_pmdp_storm, verify_pmc_storm, \
-    define_sparse_LHS
+    define_sparse_LHS, verify_linear_program
 
 import numpy as np
 import scipy.sparse as sparse
@@ -58,7 +58,8 @@ def pmc_validate_derivative(pmc, inst, solution, deriv, args):
         instantiated_model, point = pmc_instantiate(pmc, inst['valuation'])
         
         # After that, use spsolve to obtain the actual solution    
-        _, result = verify_spsolve(instantiated_model, pmc.reward, pmc.scheduler_prob)
+        _, result = verify_linear_program(instantiated_model, pmc.reward, pmc.scheduler_prob)
+        # _, result = verify_spsolve(instantiated_model, pmc.reward, pmc.scheduler_prob)
             
         # Extract solution
         solution_new = result[pmc.sI['s']] @ pmc.sI['p']
@@ -70,7 +71,7 @@ def pmc_validate_derivative(pmc, inst, solution, deriv, args):
         if deriv['LP'][q] != 0:
             deriv['RelDiff'][q] = (deriv['validate'][q]-deriv['LP'][q])/deriv['LP'][q]
         
-        print('- Parameter {}, LP: {:.6f}, val: {:.6f}, diff: {:.6f}'.format(x,  deriv['validate'][q], deriv['LP'][q], deriv['RelDiff'][q]))
+        print('- Parameter {}, LP: {:.6f}, val: {:.6f}, diff: {:.6f}'.format(x, deriv['LP'][q], deriv['validate'][q], deriv['RelDiff'][q]))
         
         inst['valuation'][x.name] -= args.validate_delta
             
@@ -130,3 +131,12 @@ def pmc_instantiate(pmc, valuation, T = False):
         T.times['instantiate'] = time.time() - start_time
         
     return instantiated_model, point
+
+def assert_probabilities(model):
+    # Check if all transition probability distributions are valid
+    
+    for s in model.states:
+        for a in s.actions:
+            distr = np.array([t.value() for t in a.transitions])
+            assert np.all(distr >= 0) and np.all(distr <= 1)
+            assert np.isclose(np.sum(distr), 1)

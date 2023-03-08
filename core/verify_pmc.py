@@ -7,6 +7,9 @@ import time
 import stormpy
 import sys
 
+import gurobipy as gp
+from gurobipy import GRB
+
 
 def pmc_get_reward(pmc, model, args):
     
@@ -120,7 +123,8 @@ def pmc_verify(instantiated_model, pmc, point, args, T = False):
     start_time = time.time()
     
     # After that, use spsolve to obtain the actual solution    
-    J, result = verify_spsolve(instantiated_model, pmc.reward, pmc.scheduler_prob)
+    J, result = verify_linear_program(instantiated_model, pmc.reward, pmc.scheduler_prob)
+    #J, result = verify_spsolve(instantiated_model, pmc.reward, pmc.scheduler_prob)
     
     if T:
         if not 'verify' in T.times:
@@ -175,6 +179,29 @@ def verify_spsolve(model, reward, scheduler):
         
     return J, result
 
+
+def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
+    
+    print('- Verify by solving LP using Gurobi')
+    
+    J = define_sparse_LHS(model, scheduler)
+    
+    # Define LP
+    m = gp.Model('CVX')
+    
+    # Add reward veriables
+    result = m.addMVar(J.shape[1], lb=0, ub=10e6)
+    
+    # Add constraint
+    m.addConstr(J @ result == reward)
+
+    # Define objective
+    m.setObjective(gp.quicksum(result), direction)
+    
+    # Solve
+    m.optimize()
+    
+    return J, result.X
 
 def verify_pmc_storm(model, properties):
     

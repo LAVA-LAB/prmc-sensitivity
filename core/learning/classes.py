@@ -150,7 +150,7 @@ class learner:
         else:
 
             self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
-            self.CVX = cvx_verification_gurobi(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)   
+            self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)   
             
         
         
@@ -238,7 +238,7 @@ def sample_derivative(L):
     G = gradient(L.prmc, L.args.robust_bound)
     
     # Update gradient object with current solution
-    G.update(L.prmc, L.CVX, mode='remove_dual')
+    G.update(L.prmc, L.CVX)
     
     assert G.J.shape[0] == G.J.shape[1]
     
@@ -250,7 +250,7 @@ def sample_derivative(L):
     idx, obj = solve_cvx_gurobi(G.J, G.Ju, L.prmc.sI, L.args.num_deriv,
                                 direction=direction, verbose=L.args.verbose, method=5)
 
-    PAR = [G.col2param[v] for v in idx]
+    PAR = [G.paramIIndex[v] for v in idx]
     
     if L.args.validate:        
         L.validate_derivatives(obj)

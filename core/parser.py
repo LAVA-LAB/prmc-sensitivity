@@ -106,7 +106,7 @@ def parse_main(manualModel=None):
     parser.set_defaults(validate_gradients=False)
     
     parser.add_argument('--validate_delta', type=float, action="store", dest='validate_delta', 
-                        default=1e-3, help="Perturbation value to validate gradients")
+                        default=1e-5, help="Perturbation value to validate gradients")
     
     parser.add_argument('--explicit_baseline', dest='explicit_baseline', action='store_true',
                         help="Perform baseline, which computes all derivatives explicitly")

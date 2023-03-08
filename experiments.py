@@ -9,6 +9,8 @@ def run_experiment(exp, prefix, output, suffix):
     string = " ".join([prefix, model_string, formula_string, additional_string, output, suffix])
     os.system(string)
 
+    # import subprocess
+    # subprocess.Popen(string, shell=True).wait()    
 
 
 prefix_pmc  = "timeout 3600s python3 pmc.py"
@@ -29,9 +31,9 @@ brp = {
     3: {'model':    "models/pdtmc/brp512_5.pm",      
         'formula':  "P=? [ F s=5 ]",       
         'extra':    "--default_valuation 0.9 --goal_label \"{'(s = 5)'}\""},
-    4: {'model':    "models/pdtmc/brp1024_6.pm",      
-        'formula':  "P=? [ F s=5 ]",       
-        'extra':    "--default_valuation 0.9 --goal_label \"{'(s = 5)'}\""},
+    # 4: {'model':    "models/pdtmc/brp1024_6.pm",      
+    #     'formula':  "P=? [ F s=5 ]",       
+    #     'extra':    "--default_valuation 0.9 --goal_label \"{'(s = 5)'}\""},
     }
 
 crowds = {
@@ -41,9 +43,9 @@ crowds = {
     1: {'model':    "models/pdtmc/crowds6_5.pm",      
         'formula':  "P=? [F \"observe0Greater1\" ]",       
         'extra':    "--goal_label \"{'observe0Greater1'}\""},
-    2: {'model':    "models/pdtmc/crowds10_5.pm",      
-        'formula':  "P=? [F \"observe0Greater1\" ]",       
-        'extra':    "--goal_label \"{'observe0Greater1'}\""},
+    # 2: {'model':    "models/pdtmc/crowds10_5.pm",      
+    #     'formula':  "P=? [F \"observe0Greater1\" ]",       
+    #     'extra':    "--goal_label \"{'observe0Greater1'}\""},
     }
 
 nand = {
@@ -53,9 +55,9 @@ nand = {
     1: {'model':    "models/pdtmc/nand5_10.pm",      
         'formula':  "P=? [F \"target\" ]",
         'extra':    "--parameters 'models/pdtmc/nand.json' --goal_label \"{'target'}\""},
-    2: {'model':    "models/pdtmc/nand10_15.pm",      
-        'formula':  "P=? [F \"target\" ]",
-        'extra':    "--parameters 'models/pdtmc/nand.json' --goal_label \"{'target'}\""},
+    # 2: {'model':    "models/pdtmc/nand10_15.pm",      
+    #     'formula':  "P=? [F \"target\" ]",
+    #     'extra':    "--parameters 'models/pdtmc/nand.json' --goal_label \"{'target'}\""},
     }
 
 virus = {
@@ -115,7 +117,7 @@ drone = {
     }
 
 f = 'P=? [F "goal"]'
-e = "--default_valuation 0.1 --goal_label \"{'goal'}\""  
+e = "--default_valuation 0.01 --goal_label \"{'goal'}\""  
 
 satellite = {
     0: {'model':    'models/satellite/pomdp_satellite_36_sat_5_act_0_65_dist_5_mem_06_sparse_full.drn',      
@@ -130,16 +132,16 @@ satellite = {
 
 suites = [
     brp, crowds, nand, virus, wlan, csma, coin,
-    maze, drone
+    maze, #drone, satellite
     ]
 
-assert False
+# assert False
 
 # %%
 
 # for suite in suites:
 #     for i,exp in suite.items():
-        # run_experiment(exp, prefix_pmc, output, suffix)
+#         run_experiment(exp, prefix_pmc, output, suffix)
        
 # %%
        

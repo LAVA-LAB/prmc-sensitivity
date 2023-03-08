@@ -1,6 +1,6 @@
 from core.classes import PMC
 
-from core.pmc_functions import pmc_load_instantiation, pmc_instantiate, pmc_derivative_LP, pmc_validate_derivative
+from core.pmc_functions import pmc_load_instantiation, pmc_instantiate, pmc_derivative_LP, pmc_validate_derivative, assert_probabilities
 from core.verify_pmc import pmc_verify, pmc_get_reward
 from core.export import export_json, timer
 
@@ -13,6 +13,28 @@ from datetime import datetime
 
 # Parse arguments
 args = parse_main()
+
+# args.model = 'models/sttt-drone/drone_model.nm'
+# args.formula = 'Pmax=? [F attarget ]'
+# args.default_valuation = 1/13
+# args.goal_label = {'(((x > (15 - 2)) & (y > (15 - 2))) & (z > (15 - 2)))'}
+
+# args.model = 'models/pdtmc/brp16_2.pm'
+# args.formula = 'P=? [ F s=5 ]'
+# args.default_valuation = 0.9
+# args.goal_label = {'(s = 5)'}
+
+# args.model = 'models/pdtmc/nand5_10.pm'
+# args.formula = 'P=? [F \"target\" ]'
+# args.parameters = 'models/pdtmc/nand.json'
+# args.goal_label = {'target'}
+
+args.model = 'models/pmdp/wlan/wlan0_param.nm'
+args.formula = 'R{"time"}max=? [ F s1=12 | s2=12 ]'
+args.default_valuation = 0.01
+args.robust_bound = 'upper'
+
+args.validate_delta = 1e-5
 
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +61,7 @@ inst = pmc_load_instantiation(pmc, args, param_path)
 
 # Define instantiated pMC based on parameter valuation
 instantiated_model, inst['point'] = pmc_instantiate(pmc, inst['valuation'], T)
+assert_probabilities(instantiated_model)
 
 pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
 

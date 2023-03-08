@@ -60,6 +60,18 @@ def Hoeffding_interval(center, confidence, parameter):
     for d in range(n):
         # print('Interval for {} is [{}, {}]'.format(parameter, center[d]-epsilon, center[d]+epsilon))
         
+        if center[d] + epsilon > 1 - min_probability:
+            b[2*d+1] = 1 - min_probability
+        else:    
+            b[2*d+1] = polynomial(param = parameter, coeff = [ center[d], alpha], power = [0, -0.5])
+        
+        if center[d] - epsilon < min_probability:
+            b[2*d] = -min_probability
+        else:
+            b[2*d]   = polynomial(param = parameter, coeff = [-center[d], alpha], power = [0, -0.5])
+        
+        
+        '''
         b[2*d]   = polynomial(param = parameter, coeff = [-center[d], alpha], power = [0, -0.5])
         b[2*d+1] = polynomial(param = parameter, coeff = [ center[d], alpha], power = [0, -0.5])
         
@@ -71,7 +83,7 @@ def Hoeffding_interval(center, confidence, parameter):
             A_entry[d] = 1
             
             A_add += [A_entry]
-            b_add += [1]
+            b_add += [1-min_probability]
             
         if center[d] - epsilon < min_probability:
             # print('- Add constraint for {}, d={}, to keep lower bound above {}'.format(parameter, d, min_probability))
@@ -89,6 +101,7 @@ def Hoeffding_interval(center, confidence, parameter):
         
         A = np.concatenate((A, A_add))
         b = np.concatenate((b, b_add))
+        '''
         
     return A,b
 

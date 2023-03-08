@@ -160,52 +160,31 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
 
 def prmc_verify(prmc, pmc, args, verbose, T = False):
     
-    done = False
-    trials = 0
-    trials_max = 2
     solver_verbose = args.verbose
-    while not done:
 
-        start_time = time.time()
-        P = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose = verbose)
-        print('- Solve optimization problem...')
+    start_time = time.time()
+    P = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose = verbose)
+    print('- Solve optimization problem...')
+    
+    P.cvx.Params.NumericFocus = 3
+    P.cvx.Params.ScaleFlag = 1
+    
+    P.solve(store_initial = True, verbose=solver_verbose)
+    
+    if T:
+        T.times['verify'] = time.time() - start_time
+       
+    print('Range of solutions: [{}, {}]'.format(np.min(P.x_tilde), np.max(P.x_tilde)))
+    print('Solution in initial state: {}\n'.format(P.x_tilde[pmc.sI['s']] @ pmc.sI['p']))
+    
+    print('Check complementary slackness...')
+    
+    if P.get_active_constraints(prmc, verbose = True):
+        print('- Slackness violated!')
+        # assert False
+    else:
+        print('- Slackness satisfied, proceed.')
         
-        P.cvx.Params.NumericFocus = 3
-        P.cvx.Params.ScaleFlag = 1
-        
-        P.solve(store_initial = True, verbose=solver_verbose)
-        
-        if T:
-            T.times['verify'] = time.time() - start_time
-           
-        print('Range of solutions: [{}, {}]'.format(np.min(P.x_tilde), np.max(P.x_tilde)))
-        print('Solution in initial state: {}\n'.format(P.x_tilde[pmc.sI['s']] @ pmc.sI['p']))
-        
-        print('Check complementary slackness...')
-        
-        if P.get_active_constraints(prmc, verbose = True):
-        
-        # if P.check_complementary_slackness(prmc, verbose=True):
-            # Check if complementary slackness is satisfied
-            if trials < trials_max:
-                trials += 1
-                
-                # prmc.beta_penalty *= 100
-                solver_verbose = True
-                print('- Slackness not satisfied. Increase beta-penalty to {} and try {} more times...'.format(prmc.beta_penalty, trials_max-trials))
-                
-                print('- Add small delta to reward vector to break symmetry...')
-                pmc.reward += 1e-5*np.random.rand(len(pmc.reward))
-                
-            else:
-                print('- Slackness not satisfied. Abort...')
-                done = True
-                # sys.exit()
-            
-        else:
-            print('- Slackness satisfied, proceed.')
-            done = True
-            
     solution = P.x_tilde[pmc.sI['s']] @ pmc.sI['p']
             
     return P, solution
@@ -218,7 +197,7 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
     G = gradient(prmc, args.robust_bound)
     
     # Update gradient object with current solution
-    G.update(prmc, P, mode='none')
+    G.update(prmc, P)
     if T:
         T.times['build_matrices'] = time.time() - start_time
     
@@ -250,7 +229,7 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
     if args.explicit_baseline:
         deriv['explicit'] = explicit_gradient(pmc, args, G.J, G.Ju, T)
             
-    return deriv
+    return G, deriv
 
 
 def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = False):
@@ -261,8 +240,6 @@ def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = F
     deriv['RelDiff']  = np.zeros(args.num_deriv, dtype=float)
     
     for q,x in enumerate(prmc.paramIndex[deriv['LP_idxs']]):
-        
-        args.beta_penalty = 0
         
         print('- Check parameter {}'.format(x))
         prmc.parameters[x].value += args.validate_delta
@@ -280,7 +257,11 @@ def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = F
         deriv['validate'][q] = (solution_new-solution) / args.validate_delta
         
         # Determine difference in %
-        deriv['RelDiff'][q] = (deriv['validate'][q]-deriv['LP'][q])/deriv['LP'][q]
+        if deriv['LP'][q] == 0:
+            if deriv['validate'][q] != 0:
+                deriv['RelDiff'][q] = np.inf
+        else:
+            deriv['RelDiff'][q] = (deriv['validate'][q]-deriv['LP'][q])/deriv['LP'][q]
         
         print('- Parameter {}, LP: {:.6f}, val: {:.6f}, diff: {:.6f}'.format(x, deriv['LP'][q], deriv['validate'][q], deriv['RelDiff'][q]))
         

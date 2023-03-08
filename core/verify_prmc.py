@@ -6,6 +6,8 @@ import sys
 import gurobipy as gp
 from gurobipy import GRB
 
+import sympy
+
 class verify_prmc:
     
     def __init__(self, M, R, robust_bound, verbose = True):
@@ -22,7 +24,7 @@ class verify_prmc:
             
         self.cvx = gp.Model('CVX')
             
-        self.x = self.cvx.addMVar(len(M.states), lb=0, ub=GRB.INFINITY)
+        self.x = self.cvx.addMVar(len(M.states), lb=0, ub=GRB.INFINITY, name='x')
         self.alpha = {}
         self.beta = {}
         
@@ -63,7 +65,7 @@ class verify_prmc:
             if self.verbose:
                 print('-- Add constraint for sink state {}'.format(s.id))
             
-            self.cns[s.id] = self.cvx.addConstr(self.x[s.id] == 0, name=str(s.id))
+            self.cns[s.id] = self.cvx.addConstr(self.x[s.id] == self.R[s.id], name=str(s.id))
                 
         else:
             # For each action in the policy
@@ -161,6 +163,9 @@ class verify_prmc:
     
     def solve(self, verbose = False, store_initial = False):
         
+        self.cvx.write('out.lp')
+        # assert False
+        
         if verbose:
             print('Solve linear program problem...')
             self.cvx.Params.OutputFlag = 1
@@ -185,46 +190,169 @@ class verify_prmc:
         return grad_numerical
         
     
-    def get_active_constraints(self, M, verbose = False):
+    def _add_active_constraint(self, prmc, s, a, alpha_nonzero, cns_needed):
+        # Select more constraints to be active
+        
+        A = prmc.states_dict[s].actions_dict[a].model.A
+        basis = A[alpha_nonzero, :]
+        
+        fixed = False
+        
+        # print(A)
+        # print('\n\n Basis is', basis)
+        
+        # Try adding one by one until we have a fully determined point
+        for i in range(len(alpha_nonzero)):
+            # If constraint i is not yet active
+            if not alpha_nonzero[i]:
+                # Check if it is independent to current basis
+                new_basis = np.concatenate((basis, A[[i], :]))
+                
+                # print('Try adding {}'.format(i))
+                # print('New basis:')
+                # print(new_basis)
+                
+                _, ind_vecs, _ = np.linalg.svd(new_basis)
+                
+                # print(ind_vecs)
+                
+                # If all vectors of new basis are independent,
+                # make this constraint active
+                if all(ind_vecs != 0):
+                    alpha_nonzero[i] = True
+                                        
+                    basis = A[alpha_nonzero, :]
+                    
+                    # print('- Make constraint {} active'.format(i))
+                    
+                    if np.linalg.matrix_rank(basis) == cns_needed:
+                        fixed = True
+                        break
+                    
+        if not fixed:
+            print('\nError: Could not repair active constraints for state {}'.format(s))
+            
+        return alpha_nonzero
+    
+    
+    def _remove_active_constraint(self, prmc, s, a, alpha_nonzero, cns_needed):
+        
+        A = prmc.states_dict[s].actions_dict[a].model.A
+        
+        basis = A[alpha_nonzero, :]
+        basis_idx = np.where(alpha_nonzero)[0]
+        
+        _, ind_vecs, _ = np.linalg.svd(basis)
+        
+        # Get linearly independent constraints
+        independent_constraints = basis_idx[ (ind_vecs != 0) ]
+        
+        # Keep minimum number needed of these
+        keep_active = independent_constraints[:cns_needed]
+        
+        alpha_nonzero = np.full_like(alpha_nonzero, False)
+        alpha_nonzero[keep_active] = True
+        
+        # print('- Keep constraints {} active'.format(keep_active))
+    
+        return alpha_nonzero
+    
+    
+    def _check_linear_independence(self, prmc, s, a, alpha_nonzero):
+        
+        # print('Check state {}'.format(s))
+        
+        A = prmc.states_dict[s].actions_dict[a].model.A
+        
+        basis = A[alpha_nonzero, :]
+        basis_idx = np.where(alpha_nonzero)[0]
+        
+        # print('Basis idx:', basis_idx)
+        # print(basis)
+        
+        echelon, indep_index = sympy.Matrix(basis.T).rref()
+        
+        not_index = [i for i in range(len(basis)) if i not in indep_index]
+        if len(not_index) > 0:
+            print('>>> Remove active constraint idx {} due to linear independence'.format(not_index))
+        
+        # print('- Linearly dependent active constraints detected (idx: {})'.format(not_index))
+        
+        # print(indep_index)
+        
+        keep_active = basis_idx[list(indep_index)]
+        
+        alpha_nonzero = np.full_like(alpha_nonzero, False)
+        alpha_nonzero[keep_active] = True
+        
+        
+        return alpha_nonzero
+        
+    
+    def get_active_constraints(self, prmc, verbose = False, repair = False):    
     
         violated = False
     
         self.keeplambda = [[]] * len(self.alpha)
         self.keepalpha = [[]] * len(self.alpha)
     
-        self.cns_dual = [self.cns[s].Pi for s in range(len(M.states))]
+        self.cns_dual = [self.cns[s].Pi for s in range(len(prmc.states))]
         
         self.active_constraints = {}
         
         # Check if assumption is satisfied
         for i,(s,a) in enumerate(self.alpha.keys()):
             
+            num_successors = len(prmc.states_dict[s].actions_dict[a].successors)
+            cns_needed = num_successors - 1
+            
             # Active constraint if alpha is nonzero
             alpha_nonzero = np.abs(self.alpha[(s, a)].X) >= 1e-12
-            lambda_nonzero = np.abs(self.alpha[(s, a)].RC) >= 1e-12
+            # lambda_nonzero = np.abs(self.alpha[(s, a)].RC) >= 1e-12
             
-            both_zero = ~alpha_nonzero + ~lambda_nonzero
+            # both_zero = ~alpha_nonzero + ~lambda_nonzero
+            cns_active = sum(alpha_nonzero)
             
-            self.active_constraints[(s, a)] = alpha_nonzero
+            if repair:
+                alpha_nonzero = self._check_linear_independence(prmc, s, a, alpha_nonzero)
             
-            num_successors = len(M.states_dict[s].actions_dict[a].successors)
-            if not sum(alpha_nonzero) == num_successors - 1:
+            if not cns_needed == cns_active and repair:
+                    
+                print('Repair!')
+                
+                # Try to repair by selecting the required number of extra active constraints
+                if cns_needed > cns_active:
+                    
+                    # print('\nActivate {} more constraint for state {}...'.format(cns_needed - cns_active, s))
+                    alpha_nonzero = self._add_active_constraint(prmc, s, a, alpha_nonzero, cns_needed)
+                    
+                elif cns_needed < cns_active:
+                    
+                    # print('\nActivate {} less constraint for state {}...'.format(cns_active - cns_needed, s))
+                    alpha_nonzero = self._remove_active_constraint(prmc, s, a, alpha_nonzero, cns_needed)                        
+                    
+            cns_active = sum(alpha_nonzero)
+                        
+            if not cns_needed == cns_active:
                 if verbose:
                     print('\nError: bad number of active constraints encountered for ({},{})'.format(s,a))
-                    # print('Alpha values:', self.alpha[(s, a)].X)
                     print('Active constraints:', sum(alpha_nonzero))
-                    print('Remaining constraints to choose from:', sum(both_zero))
-                    print('Number of successor states:', num_successors)
-            
+                    print('Constraints needed:', cns_needed)
+                       
                 violated = True
+                    
+            self.active_constraints[(s, a)] = alpha_nonzero
             
             self.keepalpha[i]  = alpha_nonzero
             self.keeplambda[i] = ~alpha_nonzero
             
         self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]
         self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
-    
+        
         return violated
+
+
+                    
     
     '''
     def check_complementary_slackness(self, M, verbose = False):
