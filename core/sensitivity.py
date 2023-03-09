@@ -198,7 +198,7 @@ def solve_eqsys(J, Ju):
 
 
 def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
-                     verbose = True, slackvar = False, method = -1):
+                     verbose = True, slackvar = False, method = 2):
     '''
     Determine 'k' parameters with highest derivative in the initial state
 
@@ -226,8 +226,8 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     m.Params.Seed = 0
 
     # m.Params.SimplexPricing = 3
-    m.Params.NumericFocus = 3
-    m.Params.ScaleFlag = 1
+    # m.Params.NumericFocus = 3
+    # m.Params.ScaleFlag = 1
     # m.Params.Presolve = 1
     # m.Params.Crossover = 0
     
