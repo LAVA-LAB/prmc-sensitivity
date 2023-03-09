@@ -557,7 +557,7 @@ BASH_FILE = ["#!/bin/bash",
 
 NUM = [10]
 
-dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
+dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
 for num_derivs in NUM:
   for (Z,V) in cases:

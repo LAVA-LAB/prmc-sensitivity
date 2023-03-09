@@ -202,6 +202,8 @@ def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
     # m.Params.NumericFocus = 3
     # m.Params.ScaleFlag = 1
     
+    print('--- Define optimization model...')
+    
     # Add reward veriables
     result = m.addMVar(J.shape[1], lb=0, ub=10e6)
     
@@ -212,6 +214,9 @@ def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
     m.setObjective(gp.quicksum(result), direction)
     
     m.Params.Method = 2
+    m.Params.Crossover = 0
+    
+    print('--- Solve...')
     
     # Solve
     m.optimize()

@@ -14,6 +14,17 @@ from datetime import datetime
 # Parse arguments
 args = parse_main()
 
+args.model = '/home/thom/Documents/CAV23/code/models/slipgrid/double_pmc_size=200_params=1000_seed=0.drn'
+args.parameters = '/home/thom/Documents/CAV23/code/models/slipgrid/double_pmc_size=200_params=1000_seed=0_mle.json'
+args.formula = 'Rmin=? [F "goal"]'
+args.pMC_engine = 'spsolve'
+args.output_folder = 'output/slipgrid__2023_03_09_11_31_26/'
+args.num_deriv = 10
+args.explicit_baseline = True
+args.robust_bound = 'lower'
+args.scale_reward = True
+args.no_gradient_validation = True
+
 # args.model = 'models/sttt-drone/drone_model.nm'
 # args.formula = 'Pmax=? [F attarget ]'
 # args.default_valuation = 1/13

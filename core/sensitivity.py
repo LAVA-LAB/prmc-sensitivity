@@ -224,6 +224,7 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     
     m.Params.Method = method
     m.Params.Seed = 0
+    m.Params.Crossover = 0
 
     # m.Params.SimplexPricing = 3
     # m.Params.NumericFocus = 3
