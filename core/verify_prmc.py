@@ -10,7 +10,24 @@ import sympy
 
 class verify_prmc:
     
-    def __init__(self, M, R, robust_bound, verbose = True):
+    def __init__(self, M, R, beta_penalty, robust_bound, verbose = True):
+        '''
+        Compute the solution for the given prMC using optimization program.
+
+        Parameters
+        ----------
+        M : prMC object
+        R : Reward vector (numpy array)
+        beta_penalty : Penalty given to beta (only tested with value of zero)
+        robust_bound : Is either 'upper' or 'lower'; indicated whether to get 
+            a robust under or over approximation of the solution.
+        verbose : Boolean for verbose output
+
+        Returns
+        -------
+        None.
+
+        '''
         
         self.R = R
         self.robust_bound = robust_bound
@@ -35,10 +52,10 @@ class verify_prmc:
                         self.beta[(s.id, a.id)]  = self.cvx.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name='beta({},{})'.format(s.id, a.id))
         
         # Objective function
-        if M.beta_penalty == 0:
+        if beta_penalty == 0:
             penalty = 0
         else:
-            penalty = M.beta_penalty * gp.quicksum([bet for bet in self.beta.values()])
+            penalty = beta_penalty * gp.quicksum([bet for bet in self.beta.values()])
         
         if self.robust_bound == 'lower':
             self.cvx.setObjective(self.x[M.sI['s']] @ M.sI['p'] - penalty, GRB.MAXIMIZE)
@@ -57,6 +74,19 @@ class verify_prmc:
     
     
     def add_state_constraint(self, s, M):
+        '''
+        Add constraints for state `s`
+
+        Parameters
+        ----------
+        s : Stormpy state object (note: not an integer, but the object itself)
+        M : prMC object
+
+        Returns
+        -------
+        None.
+
+        '''
         
         RHS = 0
         
@@ -106,8 +136,6 @@ class verify_prmc:
                             + self.beta[(s.id, a.id)] == 0,
                             name='({},{})'.format(int(s.id), int(a.id))
                             )
-                
-                    # self.cns[('ineq', s.id, a.id)] = self.cvx.addConstr(self.alpha[(s.id, a.id)] >= 0)
                     
                 else:
                     
@@ -162,6 +190,9 @@ class verify_prmc:
     
     
     def solve(self, verbose = False, store_initial = False):
+        '''
+        Solve optimization problem.
+        '''
         
         self.cvx.write('out.lp')
         # assert False
@@ -180,6 +211,26 @@ class verify_prmc:
         
         
     def delta_solve(self, theta, delta, verbose = False):
+        '''
+        Solve optimization problem with a slight change in one of the params.
+
+        Parameters
+        ----------
+        theta : TYPE
+            DESCRIPTION.
+        delta : TYPE
+            DESCRIPTION.
+        verbose : TYPE, optional
+            DESCRIPTION. The default is False.
+
+        Returns
+        -------
+        grad_numerical : TYPE
+            DESCRIPTION.
+
+        '''
+        
+        # TODO: function currently not used; can it be useful?
         
         theta.value += delta
         self.cvx.optimize()
@@ -198,9 +249,6 @@ class verify_prmc:
         
         fixed = False
         
-        # print(A)
-        # print('\n\n Basis is', basis)
-        
         # Try adding one by one until we have a fully determined point
         for i in range(len(alpha_nonzero)):
             # If constraint i is not yet active
@@ -208,13 +256,7 @@ class verify_prmc:
                 # Check if it is independent to current basis
                 new_basis = np.concatenate((basis, A[[i], :]))
                 
-                # print('Try adding {}'.format(i))
-                # print('New basis:')
-                # print(new_basis)
-                
                 _, ind_vecs, _ = np.linalg.svd(new_basis)
-                
-                # print(ind_vecs)
                 
                 # If all vectors of new basis are independent,
                 # make this constraint active
@@ -222,8 +264,6 @@ class verify_prmc:
                     alpha_nonzero[i] = True
                                         
                     basis = A[alpha_nonzero, :]
-                    
-                    # print('- Make constraint {} active'.format(i))
                     
                     if np.linalg.matrix_rank(basis) == cns_needed:
                         fixed = True
@@ -253,50 +293,53 @@ class verify_prmc:
         alpha_nonzero = np.full_like(alpha_nonzero, False)
         alpha_nonzero[keep_active] = True
         
-        # print('- Keep constraints {} active'.format(keep_active))
-    
         return alpha_nonzero
     
     
     def _check_linear_independence(self, prmc, s, a, alpha_nonzero):
-        
-        # print('Check state {}'.format(s))
         
         A = prmc.states_dict[s].actions_dict[a].model.A
         
         basis = A[alpha_nonzero, :]
         basis_idx = np.where(alpha_nonzero)[0]
         
-        # print('Basis idx:', basis_idx)
-        # print(basis)
+        _, keep_index = sympy.Matrix(basis.T).rref()
         
-        echelon, indep_index = sympy.Matrix(basis.T).rref()
-        
-        not_index = [i for i in range(len(basis)) if i not in indep_index]
         if len(not_index) > 0:
+            not_index = [i for i in range(len(basis)) if i not in keep_index]
             print('>>> Remove active constraint idx {} due to linear independence'.format(not_index))
         
-        # print('- Linearly dependent active constraints detected (idx: {})'.format(not_index))
-        
-        # print(indep_index)
-        
-        keep_active = basis_idx[list(indep_index)]
+        keep_active = basis_idx[list(keep_index)]
         
         alpha_nonzero = np.full_like(alpha_nonzero, False)
         alpha_nonzero[keep_active] = True
-        
         
         return alpha_nonzero
         
     
     def get_active_constraints(self, prmc, verbose = False, repair = False):    
-    
+        '''
+        Determine which constraints are active, and subsequently determine
+        whether complementary slackness is satisfied. Also contains some
+        prototype features to repair if the active constraints are under/over-
+        specified.
+
+        Parameters
+        ----------
+        prmc : prMC object
+        verbose : Boolean for verbose output
+        repair : Boolean; if True, try to repair active constraints if needed
+
+        Returns
+        -------
+        violated : If True, slackness was violated
+
+        '''
+        
         violated = False
     
         self.keeplambda = [[]] * len(self.alpha)
         self.keepalpha = [[]] * len(self.alpha)
-    
-        self.cns_dual = [self.cns[s].Pi for s in range(len(prmc.states))]
         
         self.active_constraints = {}
         
@@ -308,30 +351,31 @@ class verify_prmc:
             
             # Active constraint if alpha is nonzero
             alpha_nonzero = np.abs(self.alpha[(s, a)].X) >= 1e-12
+
             # lambda_nonzero = np.abs(self.alpha[(s, a)].RC) >= 1e-12
-            
             # both_zero = ~alpha_nonzero + ~lambda_nonzero
+
             cns_active = sum(alpha_nonzero)
             
             if repair:
                 alpha_nonzero = self._check_linear_independence(prmc, s, a, alpha_nonzero)
             
-            if not cns_needed == cns_active and repair:
+                if not cns_needed == cns_active:
                     
-                print('Repair!')
-                
-                # Try to repair by selecting the required number of extra active constraints
-                if cns_needed > cns_active:
-                    
-                    # print('\nActivate {} more constraint for state {}...'.format(cns_needed - cns_active, s))
-                    alpha_nonzero = self._add_active_constraint(prmc, s, a, alpha_nonzero, cns_needed)
-                    
-                elif cns_needed < cns_active:
-                    
-                    # print('\nActivate {} less constraint for state {}...'.format(cns_active - cns_needed, s))
-                    alpha_nonzero = self._remove_active_constraint(prmc, s, a, alpha_nonzero, cns_needed)                        
-                    
-            cns_active = sum(alpha_nonzero)
+                    # Try to repair by selecting the required number of extra active constraints
+                    if cns_needed > cns_active:
+                        
+                        if verbose:
+                            print('\nActivate {} more constraint for state {}...'.format(cns_needed - cns_active, s))
+                        alpha_nonzero = self._add_active_constraint(prmc, s, a, alpha_nonzero, cns_needed)
+                        
+                    elif cns_needed < cns_active:
+                        
+                        if verbose:
+                            print('\nActivate {} less constraint for state {}...'.format(cns_active - cns_needed, s))
+                        alpha_nonzero = self._remove_active_constraint(prmc, s, a, alpha_nonzero, cns_needed)                        
+                        
+                cns_active = sum(alpha_nonzero)
                         
             if not cns_needed == cns_active:
                 if verbose:
@@ -421,7 +465,3 @@ class verify_prmc:
         
         return violated
     '''    
-    
-    def tie_break_activate_constraints(self):
-        
-        return

@@ -3,14 +3,31 @@ import scipy.sparse as sparse
 import time
 import random
 
-def explicit_gradient(pmc, args, J, Ju, T = False):
-        
+def explicit_gradient(pmc, args, J, Ju, T = False, N = 10):
+    '''
+    Compute N derivatives explicitly by solving the respecitve equation system
+    of J x = Ju, with x the vector of derivatives.
+
+    Parameters
+    ----------
+    pmc : PMC object
+    args : Arguments object
+    J : Left-hand side sparse matrix (CSR format)
+    Ju : Right-hand side matrix (CSC format)
+    T : Timing object, used to store run times
+
+    Returns
+    -------
+    deriv_expl : Vector of derivatives
+
+    '''    
+    
     start_time = time.time()
     
     # Select N random parameters
     idxs = np.arange(len(pmc.parameters))
     random.shuffle(idxs)
-    sample_idxs = idxs[:min(len(pmc.parameters), 10)]
+    sample_idxs = idxs[:min(len(pmc.parameters), N)]
     
     deriv_expl = np.zeros(len(sample_idxs), dtype=float)
     

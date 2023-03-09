@@ -12,6 +12,9 @@ from gurobipy import GRB
 
 
 def pmc_get_reward(pmc, model, args):
+    '''
+    Get the reward vector for the given pMC.
+    '''
     
     # If nondeterministic model, first use storm to obtain a policy
     if model.is_nondeterministic_model:
@@ -44,28 +47,25 @@ def pmc_get_reward(pmc, model, args):
 
 def get_pmdp_reward_from_label(model, label):
     '''
-    Set reward vector for reachability problem (rew=1 for goal states only)
+    Set reward vector for reachability problem (rew=1 for goal states only).
     '''
     
     print('- Set R=1 for states with label "{}"'.format(label))
     
-    R = np.zeros(len(model.states))
-    
-    # print(label)
+    reward = np.zeros(len(model.states))
     all_labels = set({})
     
     nr_mod = 0
     for s in model.states:
         all_labels.update(model.labels_state(s.id))
         if label.issubset(model.labels_state(s.id)):
-            R[s.id] = 1
+            reward[s.id] = 1
             nr_mod += 1
-            #print('Reward for {} = 1'.format(s.id))
-    
+            
     print('- Set reward to one for {} states'.format(nr_mod))
     print('- All encountered labels are:', all_labels)
     
-    return R
+    return reward
 
 
 
@@ -77,17 +77,13 @@ def get_pmdp_reward_vector(model, scheduler):
         raise Exception("No reward model specified.")
     
     reward_model = next(iter(model.reward_models.values()))
-    R = np.zeros(len(model.states))
+    reward = np.zeros(len(model.states))
     
     for s in model.states:
-        # print('State {} has labels {}'.format(s.id, s.labels))
         
         if not model.is_sink_state(s):
             if reward_model.has_state_rewards:
-                R[s.id] = float(reward_model.get_state_reward(s.id))
-                
-                # Line for parametric model
-                # R[s.id] = float(reward_model.get_state_reward(s.id).evaluate(point))
+                reward[s.id] = float(reward_model.get_state_reward(s.id))
                 
             elif reward_model.has_state_action_rewards:
                 # For each action
@@ -102,21 +98,33 @@ def get_pmdp_reward_vector(model, scheduler):
                         choice = s.id
                         
                     # Reward is weighted with probability of chosing that action
-                    R[s.id] += prob * float(reward_model.get_state_action_reward(choice))
-                    
-                # Line for parametric model
-                # R[s.id] = float(reward_model.get_state_action_reward(s.id).evaluate(point))
-                
+                    reward[s.id] += prob * float(reward_model.get_state_action_reward(choice))
+                                    
             else:
                 sys.exit()
                 
-        # print('- Reward: {}'.format(R[s.id]))
-                
-    return R
+    return reward
 
 
 
-def pmc_verify(instantiated_model, pmc, point, args, T = False):
+def pmc_verify(instantiated_model, pmc, point, T = False):
+    '''
+    Compute the solution for the given instantiated model.
+
+    Parameters
+    ----------
+    instantiated_model : Stormpy instantiated model
+    pmc : pMC object
+    point : Parameter point
+    T : Timing object, used to store run times
+
+    Returns
+    -------
+    solution_sI : Solution in initial state (scalar)
+    J : LHS matrix
+    Ju : RHS matrix
+
+    '''
     
     print('Model checking pMC...')
         
@@ -170,6 +178,7 @@ def convert_scheduler(model, scheduler):
     return prob_scheduler
         
 
+
 def verify_spsolve(model, reward, scheduler):
 
     print('- Verify by solving sparse equation system...')    
@@ -178,6 +187,7 @@ def verify_spsolve(model, reward, scheduler):
     result = sparse.linalg.spsolve(J, reward)  
         
     return J, result
+
 
 
 def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
@@ -202,6 +212,8 @@ def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
     m.optimize()
     
     return J, result.X
+
+
 
 def verify_pmc_storm(model, properties):
     
@@ -229,6 +241,9 @@ def verify_pmdp_storm(model, properties):
 
 
 def define_sparse_LHS(model, scheduler):
+    '''
+    Construct the left-hand side matrix for computing derivatives.
+    '''
     
     row = []
     col = []
@@ -287,6 +302,9 @@ def define_sparse_LHS(model, scheduler):
 
 
 def define_sparse_RHS(model, parameters, params2states, sols, point, scheduler):
+    '''
+    Construct the right-hand side matrix for computing derivatives.
+    '''
     
     row = []
     col = []
@@ -339,9 +357,6 @@ def define_sparse_RHS(model, parameters, params2states, sols, point, scheduler):
                         else:
                             val[dok[(state.id, q)]] += cur_val
                         
-                        
-                        
-                 
     # Create sparse matrix for right-hand side
     Ju = -sparse.csc_matrix((val, (row, col)), shape=(len(model.states), len(parameters)))
     

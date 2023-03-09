@@ -13,7 +13,23 @@ import sys
     
 
 def pmc_derivative_LP(pmc, J, Ju, args, T = False):    
-        
+    '''
+    Compute the k=args.num_deriv highest derivatives for a pMC.
+
+    Parameters
+    ----------
+    pmc : pMC object
+    J : Left-hand side sparse matrix (CSR format)
+    Ju : Right-hand side matrix (CSC format)
+    args : Arguments object
+    T : Timing object, used to store run times
+
+    Returns
+    -------
+    deriv : Dictionary with derivative results
+
+    '''    
+    
     # Upper bound number of derivatives to the number of parameters
     args.num_deriv = min(args.num_deriv, len(pmc.parameters))
 
@@ -42,17 +58,34 @@ def pmc_derivative_LP(pmc, J, Ju, args, T = False):
     return deriv
 
 
-def pmc_validate_derivative(pmc, inst, solution, deriv, args):
+def pmc_validate_derivative(pmc, inst, solution, deriv, delta):
+    '''
+    Validate derivatives numerically, by giving each parameter a small delta
+    and recomputing the solution
 
-    print('\nValidation by perturbing parameters by +{}'.format(args.validate_delta))
+    Parameters
+    ----------
+    pmc : pMC object
+    inst : Parameter instantiation dictionary
+    solution : Current solution (scalar value)
+    deriv : Dictionary with derivative results
+    delta : delta to give to the parameter instantiation
+
+    Returns
+    -------
+    deriv : Updated derivatives object
+
+    '''
+
+    print('\nValidation by perturbing parameters by +{}'.format(delta))
     
-    deriv['validate'] = np.zeros(args.num_deriv, dtype=float)
-    deriv['RelDiff']  = np.zeros(args.num_deriv, dtype=float)
+    deriv['validate'] = np.zeros(len(deriv['LP_idxs']), dtype=float)
+    deriv['RelDiff']  = np.zeros(len(deriv['LP_idxs']), dtype=float)
     
     for q,x in enumerate(pmc.parameters[deriv['LP_idxs']]):
         
         # Increment this parameter by the given delta
-        inst['valuation'][x.name] += args.validate_delta
+        inst['valuation'][x.name] += delta
         
         # instantiate model
         instantiated_model, point = pmc_instantiate(pmc, inst['valuation'])
@@ -65,7 +98,7 @@ def pmc_validate_derivative(pmc, inst, solution, deriv, args):
         solution_new = result[pmc.sI['s']] @ pmc.sI['p']
         
         # Compute derivative
-        deriv['validate'][q] = (solution_new-solution) / args.validate_delta
+        deriv['validate'][q] = (solution_new-solution) / delta
         
         # Determine difference in %
         if deriv['LP'][q] != 0:
@@ -73,12 +106,26 @@ def pmc_validate_derivative(pmc, inst, solution, deriv, args):
         
         print('- Parameter {}, LP: {:.6f}, val: {:.6f}, diff: {:.6f}'.format(x, deriv['LP'][q], deriv['validate'][q], deriv['RelDiff'][q]))
         
-        inst['valuation'][x.name] -= args.validate_delta
+        inst['valuation'][x.name] -= delta
             
     return deriv
 
 
-def pmc_load_instantiation(pmc, args, param_path):
+def pmc_load_instantiation(pmc, param_path, default_valuation):
+    '''
+    Load parameter instantiation for a pMC
+
+    Parameters
+    ----------
+    pmc : pMC object
+    param_path : Path (string) to instantiation file to load.
+    default valuation : Scalar value for the default valuation of a parameter
+
+    Returns
+    -------
+    inst : Instantiation dictionary
+
+    '''
     
     # Load parameter valuation
     if param_path:
@@ -103,7 +150,7 @@ def pmc_load_instantiation(pmc, args, param_path):
         sample_size = None
         
         for x in pmc.parameters:
-            valuation[x.name] = args.default_valuation
+            valuation[x.name] = default_valuation
             
     inst = {'valuation': valuation,
             'sample_size': sample_size}
@@ -112,6 +159,21 @@ def pmc_load_instantiation(pmc, args, param_path):
 
 
 def pmc_instantiate(pmc, valuation, T = False):
+    '''
+    Instantiate a pMC with the given valuation
+
+    Parameters
+    ----------
+    pmc : pMC object
+    valuation : Parameter valuation (dictionary)
+    T : Timing object, used to store run times
+
+    Returns
+    -------
+    instantiated_model : Stormpy instantiated model
+    point : Parameter point
+
+    '''
     
     start_time = time.time()
     
@@ -133,7 +195,10 @@ def pmc_instantiate(pmc, valuation, T = False):
     return instantiated_model, point
 
 def assert_probabilities(model):
-    # Check if all transition probability distributions are valid
+    '''
+    Assert if all probability distributions of given model are valid.
+
+    '''
     
     for s in model.states:
         for a in s.actions:

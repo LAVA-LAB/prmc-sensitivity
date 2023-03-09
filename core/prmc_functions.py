@@ -15,6 +15,25 @@ import time
 from gurobipy import GRB
 
 def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args, verbose, T = False):
+    '''
+    Convert pMC into a prMC
+
+    Parameters
+    ----------
+    pmc_model : Stormpy pMC model
+    pmc_parameters : Numpy array of pMC parameters
+    pmc_scheduler : Dictionary for scheduler/policy of the policy
+    point : Parameter point
+    sample_size : Sample size to use
+    args : Arguments object
+    verbose : Boolean for verbose output
+    T : Timing object, used to store run times
+
+    Returns
+    -------
+    M : prMC object
+
+    '''    
 
     start_time = time.time()    
     
@@ -32,10 +51,10 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
     M = PRMC(num_states = len(pmc_model.states))
     M.set_initial_states(pmc_model.initial_states)
     
-    M.discount = args.discount
-    M.beta_penalty = args.beta_penalty
-    
     M.is_sink_state = pmc_model.is_sink_state
+    
+    #TODO: has not been tested with discount < 1.
+    M.discount = args.discount
     
     M.nr_transitions = pmc_model.nr_transitions
     M.parameters_pmc = pmc_parameters
@@ -159,11 +178,28 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
 
 
 def prmc_verify(prmc, pmc, args, verbose, T = False):
+    '''
+    Verify prMC
+
+    Parameters
+    ----------
+    prmc : prMC object
+    pmc : pMC object
+    args : Arguments object
+    verbose : Boolean for verbose output
+    T : Timing object, used to store run times
+
+    Returns
+    -------
+    P : Verifier object
+    solution : Obtained solution (scalar)
+
+    '''
     
     solver_verbose = args.verbose
 
     start_time = time.time()
-    P = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose = verbose)
+    P = verify_prmc(prmc, pmc.reward, args.beta_penalty, args.robust_bound, verbose = verbose)
     print('- Solve optimization problem...')
     
     P.cvx.Params.NumericFocus = 3
@@ -180,10 +216,9 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
     print('Check complementary slackness...')
     
     if P.get_active_constraints(prmc, verbose = True):
-        print('- Slackness violated!')
-        # assert False
+        print('- Warning: Slackness violated (trying to proceed...)')
     else:
-        print('- Slackness satisfied, proceed.')
+        print('- Slackness satisfied, proceed')
         
     solution = P.x_tilde[pmc.sI['s']] @ pmc.sI['p']
             
@@ -191,6 +226,23 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
 
 
 def prmc_derivative_LP(prmc, pmc, P, args, T = False):
+    '''
+    Compute k=args.num_deriv derivatives for prMC
+
+    Parameters
+    ----------
+    prmc : prMC object
+    pmc : pMC object
+    P : Verifier object
+    args : Arguments object
+    T : Timing object, used to store run times
+    
+    Returns
+    -------
+    G : Derivatives object
+    deriv : Dictionary of derivative results
+
+    '''
     
     start_time = time.time()
     # Create object for computing gradients
@@ -232,19 +284,46 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
     return G, deriv
 
 
-def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = False):
+def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, delta, 
+                             robust_bound, beta_penalty, verbose = False):
+    '''
+    Validate derivatives numerically, by giving each parameter a small delta
+    and recomputing the solution
+
+    Parameters
+    ----------
+    prmc : prMC object
+    pmc : pMC object
+    inst : Instantiation dictionary
+    solution : Current solution (scalar)
+    deriv : Dictionary of derivative results
+    args : Arguments object
+    verbose : Boolean for verbose output
     
-    print('\nValidation by perturbing parameters by +{}'.format(args.validate_delta))
     
-    deriv['validate'] = np.zeros(args.num_deriv, dtype=float)
-    deriv['RelDiff']  = np.zeros(args.num_deriv, dtype=float)
+    pmc : pMC object
+    inst : Parameter instantiation dictionary
+    solution : Current solution (scalar value)
+    deriv : Dictionary with derivative results
+    delta : delta to give to the parameter instantiation
+
+    Returns
+    -------
+    deriv : Updated derivatives object
+
+    '''
+    
+    print('\nValidation by perturbing parameters by +{}'.format(delta))
+    
+    deriv['validate'] = np.zeros(len(deriv['LP_idxs']), dtype=float)
+    deriv['RelDiff']  = np.zeros(len(deriv['LP_idxs']), dtype=float)
     
     for q,x in enumerate(prmc.paramIndex[deriv['LP_idxs']]):
         
         print('- Check parameter {}'.format(x))
-        prmc.parameters[x].value += args.validate_delta
+        prmc.parameters[x].value += delta
         
-        P = verify_prmc(prmc, pmc.reward, args.robust_bound, verbose=verbose)
+        P = verify_prmc(prmc, pmc.reward, beta_penalty, robust_bound, verbose = verbose)
         
         P.cvx.Params.NumericFocus = 3
         P.cvx.Params.ScaleFlag = 1
@@ -254,7 +333,7 @@ def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = F
         solution_new = P.x_tilde[pmc.sI['s']] @ pmc.sI['p']
         
         # Compute derivative
-        deriv['validate'][q] = (solution_new-solution) / args.validate_delta
+        deriv['validate'][q] = (solution_new-solution) / delta
         
         # Determine difference in %
         if deriv['LP'][q] == 0:
@@ -265,6 +344,6 @@ def prmc_validate_derivative(prmc, pmc, inst, solution, deriv, args, verbose = F
         
         print('- Parameter {}, LP: {:.6f}, val: {:.6f}, diff: {:.6f}'.format(x, deriv['LP'][q], deriv['validate'][q], deriv['RelDiff'][q]))
         
-        prmc.parameters[x].value -= args.validate_delta
+        prmc.parameters[x].value -= delta
         
     return deriv

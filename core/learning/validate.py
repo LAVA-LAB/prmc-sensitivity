@@ -3,7 +3,23 @@ from core.main_prmc import pmc2prmc
 from core.verify_prmc import verify_prmc
 
 def validate(solution, validate_pars, args, pmc, inst):
+    '''
+    Validate gradient empirically
 
+    Parameters
+    ----------
+    solution : Solution under the base parameter instantiatoin
+    validate_pars : Array of parameters to validate
+    args : Arguments object
+    pmc : pMC object
+    inst : Instantiation dictionray
+
+    Returns
+    -------
+    empirical_deriv : Numpy array or numerical/empirical derivatives
+
+    '''
+    
     empirical_deriv = np.zeros(len(validate_pars))
 
     for q,x in enumerate(validate_pars):

@@ -212,8 +212,7 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     Returns
     -------
     K : indices of chosen parameters
-    v : Optimal value of the LP
-    time : Time to build and solve LP
+    Deriv : Array of derivatives
 
     '''
     
@@ -255,13 +254,12 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     
     m.setObjective(x[ sI['s']] @ sI['p'] + penalty, direction)
     
-    # m.tune()
     m.optimize()
     
     if slackvar:
         print('- Maximal slack value is {}'.format(np.max(np.abs(slack.X))))
     
-    # Get the indices of the k parameters showing maximimum derivatives
+    # Get the indices K of the k>=1 parameters showing maximimum derivatives
     K = np.argpartition(y.X, -k)[-k:]
     optimum = m.ObjVal
     

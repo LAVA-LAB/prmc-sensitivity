@@ -13,8 +13,8 @@ def run_experiment(exp, prefix, output, suffix):
     # subprocess.Popen(string, shell=True).wait()    
 
 
-prefix_pmc  = "timeout 3600s python3 pmc.py"
-prefix_prmc = "timeout 3600s python3 prmc.py"
+prefix_pmc  = "timeout 3600s python3 run_pmc.py"
+prefix_prmc = "timeout 3600s python3 run_prmc.py"
 output  = "--output_folder 'output/test_results/'"
 suffix  = "--num_deriv 1 --validate_delta 1e-5" #" --explicit_baseline"
 
@@ -132,16 +132,16 @@ satellite = {
 
 suites = [
     brp, crowds, nand, virus, wlan, csma, coin,
-    maze, #drone, satellite
+    maze, drone #, satellite
     ]
 
 # assert False
 
 # %%
 
-# for suite in suites:
-#     for i,exp in suite.items():
-#         run_experiment(exp, prefix_pmc, output, suffix)
+for suite in suites:
+    for i,exp in suite.items():
+        run_experiment(exp, prefix_pmc, output, suffix)
        
 # %%
        

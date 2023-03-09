@@ -45,8 +45,10 @@ class polynomial(object):
     
     
     def deriv_eval(self, param):
-        # Differentiate polynomial and return the value evaluated at the 
-        # current parameter value
+        '''
+        Differentiate polynomial and return the value evaluated at the 
+        current parameter value
+        '''
         
         # Check if ID of the provided parameter equals that of this polynomial
         if param.id == self.par.id:
@@ -60,7 +62,9 @@ class polynomial(object):
     
     
     def expr(self):
-        # Evaluate the polynomial to get the CVXPY expression
+        '''
+        Evaluate the polynomial to get the CVXPY expression
+        '''
         
         expr = 0
         for p,c in zip(self.power, self.coeff):
@@ -78,8 +82,10 @@ class polynomial(object):
     
     
     def val(self):
-        # Evaluate the polynomial and return the value evaluated at the 
-        # current parameter value
+        '''
+        Evaluate the polynomial and return the value evaluated at the 
+        current parameter value
+        '''
         
         val = cp.sum([c * self.par.value ** p for p,c in zip(self.power, self.coeff)])
         

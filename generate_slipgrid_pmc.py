@@ -613,13 +613,15 @@ for num_derivs in NUM:
             drn_path = gen_pMDP_random_drn(N, terrain, model_name,
                                     loc_package, loc_warehouse, reward, slipmode = mode)
             
-            command = ["timeout 3600s python3 run_cav23.py",
-                       '--instance "grid({},{},{})"'.format(Z,V,mode),
+            prefix_pmc  = ["timeout 3600s python3 run_pmc.py"]
+            prefix_prmc = ["timeout 3600s python3 run_prmc.py"]
+            
+            command = ['--instance "grid({},{},{})"'.format(Z,V,mode),
                        "--model '{}'".format(drn_path),
                        "--parameters '{}'".format(json_mle_path),
                        "--formula 'Rmin=? [F \"goal\"]'",
                        "--pMC_engine 'spsolve'",
-                       "--validate_delta -0.001",
+                       # "--validate_delta -0.001",
                        "--output_folder 'output/slipgrid_{}/'".format(dt),
                        "--num_deriv {}".format(num_derivs),
                        "--explicit_baseline",
@@ -629,10 +631,10 @@ for num_derivs in NUM:
             if num_derivs > 1:
                 command += ["--no_gradient_validation"]
             
-            if (Z >= 400) or (Z >= 200 and V > 100):
-                command += ["--no_prMC"]
+            BASH_FILE += [" ".join(prefix_pmc + command)+";"]
             
-            BASH_FILE += [" ".join(command)+";"]
+            if not ((Z >= 400) or (Z >= 200 and V > 100)):
+                BASH_FILE += [" ".join(prefix_prmc + command)+";"]
         
 BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid_{}/' --table_name 'tables/slipgrid_table_{}'".format(dt, dt)]
         

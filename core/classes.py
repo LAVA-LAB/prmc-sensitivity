@@ -5,6 +5,9 @@ from tabulate import tabulate
 from core.uncertainty_models import Linf_polytope, L1_polytope, Hoeffding_interval
 
 class PMC:
+    '''
+    Parametric Markov chain
+    '''
     
     def __init__(self, model_path, args, verbose = False):
         
@@ -20,6 +23,20 @@ class PMC:
         
         
     def _load_prism_model(self, args):
+        '''
+        Load a model from PRISM
+
+        Parameters
+        ----------
+        args : Arguments object
+
+        Returns
+        -------
+        model : Stormpy model
+        properties : Stormpy properties object
+        parameters : Numpy array of PMC parameters
+
+        '''
         
         print('Load PRISM model with STORM...')
         
@@ -49,6 +66,14 @@ class PMC:
     
     
     def get_parameters_to_states(self):
+        '''
+        Obtain a mapping from parameters to states.
+
+        Returns
+        -------
+        params2states : Dictionary {x: y, ...}, with parameters x and states y.
+
+        '''
         
         print("- Obtain mapping from parameters to states...")
         
@@ -69,6 +94,9 @@ class PMC:
     
 
 class PRMC:
+    '''
+    Parametric robust Markov chain
+    '''
     
     def __init__(self, num_states):
         
@@ -80,7 +108,11 @@ class PRMC:
         self.robust_successors = {}
         self.robust_constraints = 0
         
+        
     def __str__(self):
+        '''
+        Print statistics
+        '''
         
         items = {
             'No. states': len(self.states),
@@ -93,25 +125,30 @@ class PRMC:
         
         return '\n' + tabulate(print_list, headers=["Property", "Value"]) + '\n'
         
+    
     def set_state_iterator(self):
         
         self.states = list(self.states_dict.values())
+        
         
     def set_initial_states(self, sI):
         
         self.sI = {'s': np.array(sI), 'p': np.full(len(sI), 1/len(sI))}
 
+
     def set_reward_models(self, rewards):
         
         self.rewards = rewards
+        
         
     def get_state_set(self):
         
         return set(self.states_dict.keys())
     
-    def update_distribution(self, var, inst):
+    
+    def update_distribution(self, var, inst, verbose = False):
         '''
-        Update a single parameter v of the PRMC
+        Update parameter 'var' of the PRMC, given instantiation 'inst'.
         '''
         
         for (s,a) in self.param2stateAction[ var ]:
@@ -120,8 +157,8 @@ class PRMC:
             probabilities = np.array([float(t.value().evaluate(inst['point'])) for t in SA.parametricTrans])
             successors = SA.successors
             
-            # print('New point estimate for {} is: {}'.format(var.name, probabilities))
-            # print('b before:', SA.model.b)
+            if verbose:
+                print('New point estimate for {} is: {}'.format(var.name, probabilities))
             
             if len(successors) == 1:
                 
@@ -132,7 +169,6 @@ class PRMC:
                 # Update probability distribution
                 SA.model.update_point(probabilities)
                 
-            # print('b after:', SA.model.b)
                 
     def set_robust_constraints(self):
         
@@ -157,6 +193,7 @@ class state:
         self.id = id
         self.initial = False
         self.actions_dict = {}
+
 
     def set_action_iterator(self):
         
@@ -193,6 +230,7 @@ class polytope:
         self.parameter = parameter
         self.type = typ
         self.confidence = confidence
+        
         
     def update_point(self, probabilities):
         

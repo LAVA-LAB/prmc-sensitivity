@@ -5,7 +5,6 @@ import itertools
 from core.polynomial import polynomial
 
 def Linf_polytope(center, size):
-    
     '''
     Generate matrix inequalities for the Linf norm around 'center', bounded by
     the given 'size', such that Ap <= b and
@@ -19,9 +18,8 @@ def Linf_polytope(center, size):
     # Retrieve dimension of polytope
     n = len(center)
 
-    # Initialize matrix
+    # Initialize matrix and vector
     A = np.kron(np.eye(n), np.array([[-1],[1]]))
-    
     b = np.zeros((2*n), dtype=object)
     
     for d in range(n):
@@ -31,7 +29,6 @@ def Linf_polytope(center, size):
     return A,b
 
 def Hoeffding_interval(center, confidence, parameter):
-    
     '''
     Compute polytopic uncertainty set, representing intervals obtained using
     Hoeffding's inequality
@@ -46,14 +43,15 @@ def Hoeffding_interval(center, confidence, parameter):
     # Retrieve dimension of polytope
     n = len(center)
 
-    # Initialize matrix
+    # Initialize matrix and vector
     A = np.kron(np.eye(n), np.array([[-1],[1]]))
-    
     b = np.zeros((2*n), dtype=object)
     
+    '''
     # Possibly add extra constraints to avoid probabilities outside [0,1]
     A_add = []
     b_add = []
+    '''
     
     epsilon = alpha * np.sqrt(1/parameter.value)
     
@@ -120,7 +118,7 @@ def L1_polytope(center, size):
     # Retrieve dimension of polytope
     n = len(center)
 
-    # Initialize matrix
+    # Initialize matrix and vector
     A = np.zeros((2**n, n), dtype=float)
     b = np.zeros((2**n), dtype=object)
     

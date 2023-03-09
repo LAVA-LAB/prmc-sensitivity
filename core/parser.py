@@ -66,14 +66,6 @@ def parse_main(manualModel=None):
     
     
     ### PROGRAM SETTINGS ###  
-    parser.add_argument('--no_prMC', dest='no_prMC', action='store_true',
-                        help="If True, prMC execution is skipped")
-    parser.set_defaults(no_prMC=False)
-    
-    parser.add_argument('--no_pMC', dest='no_pMC', action='store_true',
-                        help="If True, pMC execution is skipped")
-    parser.set_defaults(no_pMC=False)
-    
     parser.add_argument('--pMC_engine', type=str, action="store", dest='pMC_engine', 
                         default='spsolve', help="Engine to solve pMCs with")
     
@@ -117,7 +109,7 @@ def parse_main(manualModel=None):
     parser.set_defaults(no_gradient_validation=False)
     
     parser.add_argument('--robust_bound', type=str, action="store", dest='robust_bound', 
-                        default='lower', help="Either 'upper' or 'lower' robust bound")    
+                        default='upper', help="Either 'upper' or 'lower' robust bound")    
     
     parser.add_argument('--robust_confidence', type=float, action="store", dest='robust_confidence', 
                         default=0.9, help="Confidence level on individual PAC probability intervals")
