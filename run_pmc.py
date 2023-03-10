@@ -82,7 +82,7 @@ print('\n',instantiated_model,'\n')
 # Verify pMC
 solution, J, Ju = pmc_verify(instantiated_model, pmc, inst['point'], T)
 
-deriv = pmc_derivative_LP(pmc, J, Ju, args, T)
+optm, deriv = pmc_derivative_LP(pmc, J, Ju, args, T)
 
 if not args.no_gradient_validation:
     pmc_validate_derivative(pmc, inst, solution, deriv, args.validate_delta)

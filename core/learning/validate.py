@@ -1,5 +1,5 @@
 import numpy as np
-from core.main_prmc import pmc2prmc
+from core.prmc_functions import pmc2prmc
 from core.verify_prmc import verify_prmc
 
 def validate(solution, validate_pars, args, pmc, inst):

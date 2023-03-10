@@ -40,7 +40,7 @@ def pmc_derivative_LP(pmc, J, Ju, args, T = False):
     print('Compute parameter importance via LP (GurobiPy)...')
     start_time = time.time()
 
-    deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(J, Ju, pmc.sI, args.num_deriv,
+    optm, deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(J, Ju, pmc.sI, args.num_deriv,
                                         direction=args.derivative_direction, verbose=True)
 
     deriv['LP_pars'] = pmc.parameters[ deriv['LP_idxs']][0].name
@@ -55,7 +55,7 @@ def pmc_derivative_LP(pmc, J, Ju, args, T = False):
         
         deriv['explicit'] = explicit_gradient(pmc, args, J, Ju, T)
             
-    return deriv
+    return optm, deriv
 
 
 def pmc_validate_derivative(pmc, inst, solution, deriv, delta):

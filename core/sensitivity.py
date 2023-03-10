@@ -232,6 +232,8 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     # m.Params.Presolve = 1
     # m.Params.Crossover = 0
     
+    print('--- Define optimization model...')
+    
     x = m.addMVar(J.shape[1], lb=-GRB.INFINITY, ub=GRB.INFINITY)
     y = m.addMVar(Ju.shape[1], lb=0, ub=1)
     
@@ -254,6 +256,8 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     m.addConstr(gp.quicksum(y) == k)    
     
     m.setObjective(x[ sI['s']] @ sI['p'] + penalty, direction)
+    
+    print('--- Solve...')
     
     m.optimize()
     
@@ -278,7 +282,7 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     else:
         Deriv = np.array([optimum])
     
-    return K, Deriv
+    return m, K, Deriv
 
 
 def solve_cvx_single(J, Ju, sI, direction = GRB.MAXIMIZE, method = -1):

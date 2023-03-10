@@ -1,22 +1,27 @@
-from core.main_pmc import run_pmc, pmc_instantiate, pmc_set_reward
 from core.classes import PMC
-from core.parser import parse_main
-import json
 
-import pandas as pd
-import os
-import numpy as np
+from core.pmc_functions import pmc_load_instantiation, pmc_instantiate, assert_probabilities
+from core.verify_pmc import pmc_verify, pmc_get_reward
+from core.export import export_json, timer
+from core.prmc_functions import pmc2prmc, prmc_verify, prmc_derivative_LP, prmc_validate_derivative
+from core.parser import parse_main
+
 from pathlib import Path
+from tabulate import tabulate
 from datetime import datetime
 
 from core.learning.classes import learner
 
+import os
+import numpy as np
+import pandas as pd
+
 # Parse arguments
 args = parse_main()
-args.validate = False
+args.no_gradient_validation = True
 
-SEEDS = np.arange(2)
-MAX_STEPS = 10
+SEEDS = np.arange(1)
+MAX_STEPS = 10000
 SAMPLES_PER_STEP = 25
 
 # %%
@@ -24,7 +29,7 @@ SAMPLES_PER_STEP = 25
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
-preset = 0
+preset = 2
 
 if preset == 0:
 
@@ -69,11 +74,10 @@ elif preset == 2:
     args.output_folder = 'output/learning/'
     args.num_deriv = 1
     args.robust_bound = 'upper'
-    args.goal_label = 'goal' 
+    args.goal_label = {'goal','notbad'}
     
-    args.default_sample_size = 1000
-    args.default_valuation = 0.5
-    
+    args.default_sample_size = 100
+        
     args.beta_penalty = 0
     args.uncertainty_model = "Hoeffding"
     
@@ -83,65 +87,43 @@ model_path = Path(args.root_dir, args.model)
 param_path = Path(args.root_dir, args.parameters) if args.parameters else False
 true_param_path = Path(args.root_dir, args.true_param_file) if args.true_param_file else False
 
+T = timer()
+
 # %%
 
-model = PMC(model_path = model_path, args = args)
+pmc = PMC(model_path = model_path, args = args)
+
+args.uncertainty_model = "Hoeffding"
+args.robust_probabilities = np.full(pmc.model.nr_states, True)
+args.robust_dependencies = 'parameter' # Can be 'none' or 'parameter'
 
 ### pMC execution    
-inst_true = {}
 if true_param_path:
     # Load parameter valuation
-    
-    inst_true['valuation'], _ = model.load_instantiation(args = args, param_path = true_param_path)
+    inst_true = pmc_load_instantiation(pmc, true_param_path, args.default_valuation)
     
 else:
     # Create parameter valuation
-    
-    inst_true['valuation'] = {}
+    inst_true = {'valuation': {}}
     
     # Create parameter valuations on the spot
-    for v in model.parameters:
+    for v in pmc.parameters:
         inst_true['valuation'][v.name] = args.default_valuation
         
-        
-inst = {}
-if param_path:
-    inst['valuation'], inst['sample_size'] = model.load_instantiation(args = args, param_path = param_path)
-    
-else:
-    
-    inst['valuation'] = {}
-    inst['sample_size'] = {}
-    
-    # Set seed
-    np.random.seed(0)
-    
-    # Create parameter valuations on the spot
-    for v in model.parameters:
-        
-        # Sample MLE value
-        p = inst_true['valuation'][v.name]
-        N = args.default_sample_size
-        delta = 1e-4
-        MLE = np.random.binomial(N, p) / N
-        
-        # Store
-        inst['valuation'][v.name] = max(min(MLE , 1-delta), delta)
-        inst['sample_size'][v.name] = args.default_sample_size
 
-# assert False
 
 # Compute True solution
 
 # Define instantiated pMC based on parameter valuation
-instantiated_model, T = pmc_instantiate(args, model, inst_true, verbose = args.verbose)
-pmc_set_reward(model, args, inst_true)
+instantiated_model, inst_true['point'] = pmc_instantiate(pmc, inst_true['valuation'], T)
+assert_probabilities(instantiated_model)
 
-# perturb = 1e-4*np.random.rand(len(model.reward))
-# model.reward += perturb
+pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
 
-# Verifying pMC
-_, _, solution_true, _ = run_pmc(args, model, instantiated_model, inst_true, verbose = args.verbose, T = T)
+print('\n',instantiated_model,'\n')
+
+# Verify true pMC
+solution_true, J, Ju = pmc_verify(instantiated_model, pmc, inst_true['point'], T)
 
 print('Optimal solution under the true parameter values: {:.3f}'.format(solution_true))
 
@@ -149,37 +131,58 @@ print('Optimal solution under the true parameter values: {:.3f}'.format(solution
 
 # assert False
 
+
+
 # %%
 
 DFs = {}
 DFs_stats = {}
 
-for mode in ['derivative','samples']:
+modes = ['derivative','expVisits_sampling','expVisits','samples','random']
+
+for mode in ['derivative', 'expVisits_sampling']: #modes[0:2]:
     
     DFs[mode] = pd.DataFrame()
     
-    for seed in SEEDS:
+    for q, seed in enumerate(SEEDS):
         print('>>> Start iteration {} <<<'.format(seed))
         
-        # Define pMC
+        if param_path:
+            inst = pmc_load_instantiation(pmc, param_path, args.default_valuation)
+            
+        else:
+            
+            inst = {'valuation': {}, 'sample_size': {}}
+            
+            # Set seed
+            np.random.seed(0)
+            
+            # Create parameter valuations on the spot
+            for v in pmc.parameters:
+                
+                # Sample MLE value
+                p = inst_true['valuation'][v.name]
+                N = args.default_sample_size
+                delta = 1e-4
+                MLE = np.random.binomial(N, p) / N
+                
+                # Store
+                inst['valuation'][v.name] = max(min(MLE , 1-delta), delta)
+                inst['sample_size'][v.name] = args.default_sample_size
         
-        # Define instantiated pMC based on parameter valuation
-        instantiated_model, T = pmc_instantiate(args, model, inst, verbose = args.verbose)
-        pmc_set_reward(model, args, inst)
+        # Define instantiated pMC based on parameter 
+        instantiated_model, inst['point'] = pmc_instantiate(pmc, inst['valuation'], T)
+        assert_probabilities(instantiated_model)
 
+        pmc.reward = pmc_get_reward(pmc, instantiated_model, args)
+        
         # model.reward += perturb
-
-        # Verifying pMC
-        pmc, _, _, _ = run_pmc(args, model, instantiated_model, inst, verbose = args.verbose, T = T)
-        
-        print('- Create arbitrary sample sizes')
-        # inst['sample_size'] = {par.name: 1000 + np.random.rand()*10 for par in pmc.parameters}
         
         # Define learner object
         L = learner(pmc, inst, SAMPLES_PER_STEP, seed, args, mode)
         
         for i in range(MAX_STEPS):
-            print('----\nStep {}\n----'.format(i))
+            print('----------------\nMethod {}, Iteration {}, Step {}\n----------------'.format(mode, q, i))
             
             # Compute robust solution for current step
             L.solve_step()

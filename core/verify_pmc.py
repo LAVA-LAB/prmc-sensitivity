@@ -1,4 +1,3 @@
-from core.sensitivity import solve_cvx_gurobi
 from core.baseline_gradient import explicit_gradient
 
 import numpy as np

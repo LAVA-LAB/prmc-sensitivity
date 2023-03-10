@@ -32,6 +32,7 @@ def explicit_gradient(pmc, args, J, Ju, T = False, N = 10):
     deriv_expl = np.zeros(len(sample_idxs), dtype=float)
     
     for i,(q,x) in enumerate(zip(sample_idxs, pmc.parameters[sample_idxs])):
+        print('--- Iteration nr. {}'.format(i))
         
         deriv_expl[i] = sparse.linalg.spsolve(J, -Ju[:,q])[pmc.sI['s']] @ pmc.sI['p']
         

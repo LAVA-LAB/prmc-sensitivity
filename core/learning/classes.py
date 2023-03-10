@@ -1,4 +1,4 @@
-from core.main_prmc import pmc2prmc
+from core.prmc_functions import pmc2prmc, pmc_instantiate
 from core.sensitivity import gradient, solve_cvx_gurobi
 from core.verify_prmc import verify_prmc
 
@@ -7,15 +7,15 @@ from core.learning.validate import validate
 
 from gurobipy import GRB
 
-import pandas as pd
 import numpy as np
-from datetime import datetime
 import random
 import time
 
 class learner:
     
     def __init__(self, pmc, inst, samples_per_step, seed, args, mode):
+        
+        self.UPDATE = True
         
         self.pmc = pmc
         self.inst = inst
@@ -34,7 +34,7 @@ class learner:
         # Define prMC
         self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
         
-        self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)
+        self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.beta_penalty, self.args.robust_bound, verbose = self.args.verbose)
         self.CVX.cvx.tune()
         try:
             self.CVX.cvx.getTuneResult(0)
@@ -50,7 +50,7 @@ class learner:
             else:
                 bound = 'lower'
             
-            self.CVX_opp = verify_prmc(self.prmc, self.pmc.reward, bound, verbose = self.args.verbose)
+            self.CVX_opp = verify_prmc(self.prmc, self.pmc.reward, self.args.beta_penalty, bound, verbose = self.args.verbose)
             self.CVX_opp.cvx.tune()
             try:
                 self.CVX_opp.cvx.getTuneResult(0)
@@ -84,10 +84,10 @@ class learner:
         
         start_time = time.time()
         self.CVX.solve(store_initial = True, verbose=self.args.verbose)
-        print(time.time() - start_time)
+        print('Solver time:', time.time() - start_time)
         
         self.solution_current = self.CVX.x_tilde[self.prmc.sI['s']] @ self.prmc.sI['p']
-        self.solution_list += [np.round(self.solution_current, 2)]
+        self.solution_list += [np.round(self.solution_current, 9)]
         
         print('Range of solutions: [{}, {}]'.format(np.min(self.CVX.x_tilde), np.max(self.CVX.x_tilde)))
         print('Solution in initial state: {}\n'.format(self.solution_current))
@@ -126,11 +126,9 @@ class learner:
     def update(self, params):
         
         ##### UPDATE PARAMETER POINT
-        _, self.inst['point'] = self.pmc.instantiate(self.inst['valuation'])
+        _, self.inst['point'] = pmc_instantiate(self.pmc, self.inst['valuation'])
         
-        UPDATE = False
-        
-        if UPDATE:
+        if self.UPDATE:
         
             for var in params:
                 # Update sample size
@@ -150,7 +148,7 @@ class learner:
         else:
 
             self.prmc = pmc2prmc(self.pmc.model, self.pmc.parameters, self.pmc.scheduler_prob, self.inst['point'], self.inst['sample_size'], self.args, verbose = self.args.verbose)
-            self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.robust_bound, verbose = self.args.verbose)   
+            self.CVX = verify_prmc(self.prmc, self.pmc.reward, self.args.beta_penalty, self.args.robust_bound, verbose = self.args.verbose)
             
         
         
@@ -215,7 +213,7 @@ def sample_importance_proportional(L):
     Sample proportional to importance factors
     """
     
-    print('Weighted sampling based on importance factor (expVisits * intervalWidth...')
+    print('Weighted sampling based on importance factor (expVisits * intervalWidth)...')
     
     importance, dtmc = parameter_importance_exp_visits(L.pmc, L.prmc, L.inst, L.CVX_opp)
     
@@ -240,6 +238,7 @@ def sample_derivative(L):
     # Update gradient object with current solution
     G.update(L.prmc, L.CVX)
     
+    # Check if matrix has correct size
     assert G.J.shape[0] == G.J.shape[1]
     
     if L.args.robust_bound == 'lower':
@@ -247,12 +246,12 @@ def sample_derivative(L):
     else:
         direction = GRB.MINIMIZE
         
-    idx, obj = solve_cvx_gurobi(G.J, G.Ju, L.prmc.sI, L.args.num_deriv,
-                                direction=direction, verbose=L.args.verbose, method=5)
+    _, idx, obj = solve_cvx_gurobi(G.J, G.Ju, L.prmc.sI, L.args.num_deriv,
+                                direction=direction, verbose=L.args.verbose)
 
-    PAR = [G.paramIIndex[v] for v in idx]
+    PAR = [L.prmc.paramIndex[v] for v in idx]
     
-    if L.args.validate:        
+    if not L.args.no_gradient_validation:  
         L.validate_derivatives(obj)
     
     return PAR

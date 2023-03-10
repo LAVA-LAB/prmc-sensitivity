@@ -106,7 +106,14 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
                     involved_pmc_parameters.update(var)
                 
                 # If only one successor states, or if the distribution in this state-action pair is not robust
-                if len(successors) == 1 or not args.robust_probabilities[s.id]:
+                cnd1 = len(successors) == 1 or not args.robust_probabilities[s.id]
+                
+                # If dependencies is set to 'parameter' level, then
+                # create a precise probability distribution if there
+                # are multiple or zero involved parmaeters.
+                cnd2 = len(involved_pmc_parameters) != 1 and args.robust_dependencies == 'parameter'
+                
+                if cnd1 or cnd2:
                     if verbose:
                         print('Pair ({},{}) is deterministic'.format(s.id, a.id))
                     
@@ -265,7 +272,7 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
         
     print('- Shape of J matrix:', G.J.shape, G.Ju.shape)
         
-    deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
+    optm, deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
                                 direction=direction, verbose=args.verbose)
     
     deriv['LP_pars'] = np.array([prmc.parameters[sa] for sa in prmc.paramIndex[deriv['LP_idxs']]])
