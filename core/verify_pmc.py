@@ -198,10 +198,10 @@ def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
     # Define LP
     m = gp.Model('CVX')
     
+    m.Params.OutputFlag = 0
+    
     # m.Params.NumericFocus = 3
     # m.Params.ScaleFlag = 1
-    
-    print('--- Define optimization model...')
     
     # Add reward veriables
     result = m.addMVar(J.shape[1], lb=0, ub=10e6)
@@ -214,8 +214,6 @@ def verify_linear_program(model, reward, scheduler, direction = GRB.MINIMIZE):
     
     m.Params.Method = 2
     m.Params.Crossover = 0
-    
-    print('--- Solve...')
     
     # Solve
     m.optimize()

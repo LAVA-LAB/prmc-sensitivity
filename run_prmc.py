@@ -26,10 +26,10 @@ args = parse_main()
 # args.default_valuation = 0.01
 # args.robust_bound = 'upper'
 
-args.model = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn'
-args.formula = 'P=? ["notbad" U "goal"]'
-args.goal_label = {'goal','notbad'}
-args.robust_bound = 'upper'
+# args.model = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn'
+# args.formula = 'P=? ["notbad" U "goal"]'
+# args.goal_label = {'goal','notbad'}
+# args.robust_bound = 'upper'
 
 # args.model = 'models/pmdp/CSMA/csma2_4_param.nm'
 # args.formula = 'R{"time"}max=? [ F "all_delivered" ]'
