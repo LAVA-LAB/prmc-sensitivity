@@ -45,7 +45,7 @@ You will see a prompt inside the docker container. The README in this folder is 
 
 # 2. Installation from source
 
-While for users, we recommend to use SLURF via the Docker container, you can also build SLURF from source as follows:
+While for users, we recommend to use the Docker container, you can also build our tool from source as follows:
 
 - Install [Storm](https://www.stormchecker.org/documentation/obtain-storm/build.html), [pycarl](https://moves-rwth.github.io/pycarl/installation.html#installation-steps) and [stormpy](https://moves-rwth.github.io/stormpy/installation.html#installation-steps) using the instructions in the stormpy documentation.
 
