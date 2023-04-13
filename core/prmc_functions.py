@@ -5,8 +5,7 @@ from core.uncertainty_models import Linf_polytope, L1_polytope, Hoeffding_interv
 from core.classes import PRMC, state, action, distribution, polytope
 from core.sensitivity import gradient, solve_cvx_gurobi
 from core.verify_prmc import verify_prmc
-from core.baseline_gradient import explicit_gradient
-from core.export import export_json
+from core.io.export import export_json
 
 from core.pmc_functions import pmc_instantiate
 
@@ -111,7 +110,7 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
                 # If dependencies is set to 'parameter' level, then
                 # create a precise probability distribution if there
                 # are multiple or zero involved parmaeters.
-                cnd2 = len(involved_pmc_parameters) != 1 and args.robust_dependencies == 'parameter'
+                cnd2 = len(involved_pmc_parameters) != 1 and not args.no_par_dependencies
                 
                 if cnd1 or cnd2:
                     if verbose:
@@ -131,7 +130,7 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
                     
                     M.states_dict[s.id].actions_dict[a.id].type = uncertainty_model
                     
-                    if args.robust_dependencies == 'parameter' and len(involved_pmc_parameters) == 1:
+                    if not args.no_par_dependencies and len(involved_pmc_parameters) == 1:
                         # If there's only one involved parameter, associate a single sample size with it in every (s,a) pair
                         v = list(involved_pmc_parameters)[0]
                         if v not in M.parameters:
@@ -222,7 +221,8 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
     
     print('Check complementary slackness...')
     
-    if P.get_active_constraints(prmc, verbose = True):
+    Sat = P.get_active_constraints(prmc, verbose = True)
+    if Sat:
         print('- Warning: Slackness violated (trying to proceed...)')
     else:
         print('- Slackness satisfied, proceed')
@@ -271,7 +271,9 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
         direction = GRB.MINIMIZE
         
     print('- Shape of J matrix:', G.J.shape, G.Ju.shape)
-        
+    
+    assert args.num_deriv <= G.Ju.shape[1]
+    
     optm, deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
                                 direction=direction, verbose=args.verbose)
     
@@ -284,9 +286,6 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
         T.times['derivative_LP'] = time.time() - start_time   
         print('- LP solved in: {:.3f} sec.'.format(T.times['derivative_LP']))
     print('- Obtained derivatives are {} for parameters {}'.format(deriv['LP'],  deriv['LP_pars']))
-    
-    if args.explicit_baseline:
-        deriv['explicit'] = explicit_gradient(pmc, args, G.J, G.Ju, T)
             
     return G, deriv
 

@@ -194,9 +194,6 @@ class verify_prmc:
         Solve optimization problem.
         '''
         
-        self.cvx.write('out.lp')
-        # assert False
-        
         if verbose:
             print('Solve linear program problem...')
             self.cvx.Params.OutputFlag = 1
@@ -305,9 +302,9 @@ class verify_prmc:
         
         _, keep_index = sympy.Matrix(basis.T).rref()
         
-        if len(not_index) > 0:
-            not_index = [i for i in range(len(basis)) if i not in keep_index]
-            print('>>> Remove active constraint idx {} due to linear independence'.format(not_index))
+        not_index = [i for i in range(len(basis)) if i not in keep_index]
+        for i in not_index:
+            print('>>> Remove active constraint idx {} due to linear dependence'.format(not_index))
         
         keep_active = basis_idx[list(keep_index)]
         
@@ -394,74 +391,3 @@ class verify_prmc:
         self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
         
         return violated
-
-
-                    
-    
-    '''
-    def check_complementary_slackness(self, M, verbose = False):
-        
-        from core.commons import valuate, deriv_valuate
-        
-        violated = False
-        repair = True
-        
-        # Slack of 1 means lambda is nonzero; Slack of -1 means alpha is nonzero
-        self.keeplambda = [[]] * len(self.alpha)
-        self.keepalpha = [[]] * len(self.alpha)
-        
-        self.cns_dual = [self.cns[s].Pi for s in range(len(M.states))]
-        
-        self.alpha_dual = {}
-        self.alpha_primal = {}
-        
-        self.active_constraints = {}
-        
-        
-        
-        # Check if assumption is satisfied
-        for i,(s,a) in enumerate(self.alpha.keys()):
-            
-            self.alpha_dual[(s, a)] = self.alpha[(s, a)].RC
-            self.alpha_primal[(s, a)] = self.alpha[(s, a)].X
-            
-            # If both lambda and alpha are zero (anywhere), complementary
-            # slackness is violated
-            
-            lambda_zero = np.abs(self.alpha_dual[(s, a)]) < 1e-12
-            # lambda_zero = np.abs(self.cns[('ineq', s, a)].Pi) < 1e-12
-            
-            alpha_zero  = np.abs(self.alpha_primal[(s, a)]) < 1e-12
-            alpha_nonzero  = np.abs(self.alpha_primal[(s, a)]) >= 1e-12
-            slacksum = np.sum([lambda_zero, alpha_zero], axis=0)
-            
-            self.active_constraints[(s, a)] = ~alpha_zero
-            
-            # If the sum is 2 anywhere, than throw an error
-            if np.any(slacksum == 2):
-                if verbose:
-                    print('state {}, action {}'.format(s, a))
-                    
-                    print('\nERROR: lambda[i] > 0 XOR alpha[i] > 0 must be true for each i')
-                    print('This assumption was not met for state {} and action {}'.format(s,a))
-                    # print('- Lambda is {}'.format(self.alpha_dual[(s, a)]))
-                    # print('- Alpha is {}'.format(self.alpha[(s,a)].X))
-                    # print('- Beta is {}'.format(self.beta[(s,a)].X))
-                    
-                    # print('A matrix:', M.states_dict[s].actions_dict[a].model.A)
-                    # print('b vector:', valuate(M.states_dict[s].actions_dict[a].model.b))
-                    
-                    print('Number of active constraints (nonzero alpha): {}'.format(sum(alpha_nonzero)))
-                    print('Number of active constraints (zero lambda): {}'.format(sum(lambda_zero)))
-                    print('Successor states: {}'.format(len(M.states_dict[s].actions_dict[a].successors)))
-                
-                violated = True
-                
-            self.keepalpha[i] = lambda_zero #~alpha_zero
-            self.keeplambda[i] = alpha_zero
-            
-        self.keepalpha = np.where( np.concatenate(self.keepalpha) == True )[0]
-        self.keeplambda = np.where( np.concatenate(self.keeplambda) == True )[0]
-        
-        return violated
-    '''    

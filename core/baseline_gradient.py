@@ -1,3 +1,5 @@
+from core.sensitivity import solve_cvx_single
+
 import numpy as np
 import scipy.sparse as sparse
 import time
@@ -34,7 +36,13 @@ def explicit_gradient(pmc, args, J, Ju, T = False, N = 10):
     for i,(q,x) in enumerate(zip(sample_idxs, pmc.parameters[sample_idxs])):
         print('--- Iteration nr. {}'.format(i))
         
-        deriv_expl[i] = sparse.linalg.spsolve(J, -Ju[:,q])[pmc.sI['s']] @ pmc.sI['p']
+        # If matrix is square, use sparse matrix solver
+        if J.shape[0] == J.shape[1]:
+            deriv_expl[i] = sparse.linalg.spsolve(J, -Ju[:,q])[pmc.sI['s']] @ pmc.sI['p']
+            
+        # Otherwise, solve via LP
+        else:
+            deriv_expl[i] = solve_cvx_single(J, Ju[:,q], pmc.sI, method = 2)
         
     if T:
         T.times['solve_explicit_one'] = (time.time() - start_time) / len(sample_idxs)

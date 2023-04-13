@@ -1,13 +1,9 @@
 from core.classes import PMC
-
 from core.pmc_functions import pmc_load_instantiation, pmc_instantiate, assert_probabilities
 from core.verify_pmc import pmc_verify, pmc_get_reward
-from core.export import export_json, timer
-from core.prmc_functions import pmc2prmc, prmc_verify, prmc_derivative_LP, prmc_validate_derivative
-from core.parser import parse_main
-
+from core.io.export import timer
+from core.io.parser import parse_main
 from pathlib import Path
-from tabulate import tabulate
 from datetime import datetime
 
 from core.learning.classes import learner
@@ -21,7 +17,7 @@ args = parse_main()
 args.no_gradient_validation = True
 
 SEEDS = np.arange(1)
-MAX_STEPS = 10000
+MAX_STEPS = 100
 SAMPLES_PER_STEP = 25
 
 # %%
@@ -29,7 +25,7 @@ SAMPLES_PER_STEP = 25
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
-preset = 2
+preset = 0
 
 if preset == 0:
 
@@ -40,7 +36,6 @@ if preset == 0:
     args.model = 'models/slipgrid_learning/double_pmc_size={}_params={}_seed={}.drn'.format(N,V,seed)
     args.parameters = 'models/slipgrid_learning/double_pmc_size={}_params={}_seed={}_mle.json'.format(N,V,seed)
     args.formula = 'Rmin=? [F "goal"]'
-    args.pMC_engine = 'spsolve'
     args.output_folder = 'output/learning/'
     args.num_deriv = 1
     args.robust_bound = 'upper'
@@ -55,7 +50,6 @@ elif preset == 1:
     args.model = 'models/pmdp/virus/virus.pm'
     args.parameters = 'models/pmdp/virus/virus_mle.json'
     args.formula = 'R{"attacks"}max=? [F s11=2 ]'
-    args.pMC_engine = 'storm'
     args.output_folder = 'output/learning/'
     args.num_deriv = 1
     args.robust_bound = 'upper'
@@ -70,7 +64,6 @@ elif preset == 2:
     args.model = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn'
     # args.parameters = 'models/pomdp/drone/pomdp_drone_4-2-mem1-simple_mle.json'
     args.formula = 'P=? ["notbad" U "goal"]'
-    args.pMC_engine = 'spsolve'
     args.output_folder = 'output/learning/'
     args.num_deriv = 1
     args.robust_bound = 'upper'
@@ -129,10 +122,6 @@ print('Optimal solution under the true parameter values: {:.3f}'.format(solution
 
 # TODO pmc does not do anything with a policy? Or implicitly?
 
-# assert False
-
-
-
 # %%
 
 DFs = {}
@@ -140,7 +129,7 @@ DFs_stats = {}
 
 modes = ['derivative','expVisits_sampling','expVisits','samples','random']
 
-for mode in ['derivative', 'expVisits_sampling']: #modes[0:2]:
+for mode in modes:
     
     DFs[mode] = pd.DataFrame()
     

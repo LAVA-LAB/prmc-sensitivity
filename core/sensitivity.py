@@ -216,6 +216,8 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
 
     '''
     
+    assert k <= Ju.shape[1]
+    
     m = gp.Model('CVX')
     if verbose:
         m.Params.OutputFlag = 1
@@ -288,7 +290,7 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
 def solve_cvx_single(J, Ju, sI, direction = GRB.MAXIMIZE, method = -1):
     
     m = gp.Model('CVX')
-    m.Params.OutputFlag = 1
+    m.Params.OutputFlag = 0
     
     Deriv = np.zeros(Ju.shape[1])
     
