@@ -3,7 +3,6 @@ import json
 import math
 import os
 from pathlib import Path
-from datetime import datetime
 
 from core.experiments.generate_slipgrids import generate_slipgrid, \
     generate_pmc_random_drn, generate_pmc_learning_drn
@@ -142,8 +141,8 @@ suites = {
 OUTPUT_FOLDER           = "output/benchmarks_cav23"
 OUTPUT_FOLDER_PARTIAL   = "output/benchmarks_cav23_partial" 
 
-TABLE_NAME              = "tables/benchmarks_cav23"
-TABLE_NAME_PARTIAL      = "tables/benchmarks_cav23_partial"
+TABLE_NAME              = "output/benchmarks_cav23"
+TABLE_NAME_PARTIAL      = "output/benchmarks_cav23_partial"
 
 BASH_OUT_FILE           = "experiments/benchmarks_cav23.sh"
 BASH_OUT_FILE_PARTIAL   = "experiments/benchmarks_cav23_partial.sh"
@@ -354,8 +353,6 @@ BASH_FILE = ["#!/bin/bash",
 
 number_derivatives = [1, 10]
 
-dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-
 for num_derivs in number_derivatives:
   for (Z,V) in cases:
     for mode in ['double']:
@@ -416,7 +413,7 @@ for num_derivs in number_derivatives:
                        "--parameters '{}'".format(json_mle_path),
                        "--formula 'Rmin=? [F \"goal\"]'",
                        # "--validate_delta -0.001",
-                       "--output_folder 'output/slipgrid_{}/'".format(dt),
+                       "--output_folder 'output/slipgrid/'",
                        "--num_deriv {}".format(num_derivs),
                        "--explicit_baseline",
                        "--robust_bound 'upper'",
@@ -430,7 +427,7 @@ for num_derivs in number_derivatives:
             if not ((Z >= 400) or (Z >= 200 and V > 100)):
                 BASH_FILE += [" ".join(prefix_prmc + command)+";"]
         
-BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid_{}/' --table_name 'tables/slipgrid_table_{}' --mode 'gridworld'".format(dt, dt)]
+BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'output/slipgrid_table' --mode 'gridworld'"]
         
 # Export bash file to perform grid world experiments
 with open(str(Path(ROOT_DIR,'experiments/grid_world.sh')), 'w') as f:
@@ -455,8 +452,6 @@ Nmax = 100
 
 iterations = [0]
 BIAS = True
-
-dt = datetime.now().strftime("_%Y_%m_%d_%H_%M_%S")
 
 for (Z,V) in cases:
     for mode in ['double']:

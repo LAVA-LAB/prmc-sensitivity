@@ -48,7 +48,7 @@ if __name__ == "__main__":
     args = parser.parse_args()    
     
     args.folder = 'output/benchmarks_cav23_partial'
-    args.table_name = 'tables/benchmarks_cav23_partial'
+    args.table_name = 'output/benchmarks_cav23_partial'
     args.mode = 'gridworld'
     
     assert args.mode in ['benchmark', 'gridworld', 'detailed']
