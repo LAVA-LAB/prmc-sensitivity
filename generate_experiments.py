@@ -221,7 +221,7 @@ for name,suite in suites.items():
 
 text += \
 ['''
- python3 create_table.py --folder '{}' --table_name '{}' --mode gridworld'''.format(OUTPUT_FOLDER, TABLE_NAME)]
+ python3 create_table.py --folder '{}' --table_name '{}' --mode benchmark'''.format(OUTPUT_FOLDER, TABLE_NAME)]
  
 # Save to file
 with open(r'{}'.format(Path(ROOT_DIR, BASH_OUT_FILE)), 'w') as fp:
@@ -231,7 +231,7 @@ print('\nExported full benchmark suite')
  
 text_partial += \
 ['''
- python3 create_table.py --folder '{}' --table_name '{}' --mode gridworld'''.format(OUTPUT_FOLDER_PARTIAL, TABLE_NAME_PARTIAL)]
+ python3 create_table.py --folder '{}' --table_name '{}' --mode benchmark'''.format(OUTPUT_FOLDER_PARTIAL, TABLE_NAME_PARTIAL)]
 
 # Save to file
 with open(r'{}'.format(Path(ROOT_DIR, BASH_OUT_FILE_PARTIAL)), 'w') as fp:
@@ -309,7 +309,7 @@ python3 run_pmc.py --model 'models/slipgrid/dummy.nm' --parameters 'models/slipg
 #
 python3 run_pmc.py --model 'models/slipgrid/dummy.nm' --parameters 'models/slipgrid/dummy_mle.json' --formula 'Rmin=? [F "goal"]' --validate_delta 0.001 --output_folder 'output/motivating_example/' --num_deriv 4;
 #
-python3 run_prmc.py --model 'models/slipgrid/dummy.nm' --parameters 'models/slipgrid/dummy_mle.json' --formula 'Rmin=? [F "goal"]' --validate_delta 0.001 --output_folder 'output/motivating_example/' --robust_bound 'upper' --num_deriv 4;
+python3 run_prmc.py --model 'models/slipgrid/dummy.nm' --parameters 'models/slipgrid/dummy_mle.json' --formula 'Rmin=? [F "goal"]' --validate_delta 0.001 --output_folder 'output/motivating_example/' --num_deriv 4;
 '''
 
 # Save to file
@@ -419,7 +419,7 @@ for num_derivs in number_derivatives:
                        "--output_folder 'output/slipgrid_{}/'".format(dt),
                        "--num_deriv {}".format(num_derivs),
                        "--explicit_baseline",
-                       "--robust_bound 'lower'",
+                       "--robust_bound 'upper'",
                        "--scale_reward"]
             
             if num_derivs > 1:

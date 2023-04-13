@@ -25,7 +25,7 @@ SAMPLES_PER_STEP = 25
 # Load PRISM model with STORM
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
 
-preset = 0
+preset = 2
 
 if preset == 0:
 

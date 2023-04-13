@@ -41,14 +41,14 @@ if __name__ == "__main__":
     parser.add_argument('--folder', type=str, action="store", dest='folder', 
                         default='output/slipgrid/', help="Folder to combine output files from")
     parser.add_argument('--table_name', type=str, action="store", dest='table_name', 
-                        default='tables/export_{}'.format(dt), help="Name of table csv file")
+                        default='output/export_{}'.format(dt), help="Name of table csv file")
     parser.add_argument('--mode', type=str, action="store", dest='mode', 
                         default='detailed', help="Style of the table to export to")
     
     args = parser.parse_args()    
     
-    args.folder = 'output/slipgrid_2023_04_13_11_30_04/'
-    args.table_name = 'tables/slipgrid_table_2023_04_13_11_30_04'
+    args.folder = 'output/benchmarks_cav23_partial'
+    args.table_name = 'tables/benchmarks_cav23_partial'
     args.mode = 'gridworld'
     
     assert args.mode in ['benchmark', 'gridworld', 'detailed']
@@ -85,6 +85,9 @@ if __name__ == "__main__":
             df_masked = df_merged[(df_merged['Instance'] == row['Instance']) &
                                   (df_merged['Type'] == row['Type']) &
                                   (df_merged['Num. derivatives'] == k)]
+            
+            if len(df_masked) == 0:
+                continue
             
             row_masked = df_masked.iloc[0]
             
