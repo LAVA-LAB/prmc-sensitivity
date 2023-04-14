@@ -5,7 +5,7 @@ This is an implementation of the approach proposed in the paper:
 - [1] "Efficient Sensitivity Analysis for Parametric Robust Markov Chains" by Thom Badings, Sebastian Junges, Ahmadreza Marandi, Ufuk Topcu, and Nils Jansen, CAV 2023
 
 The methods in this artifact can be used to compute the partial derivatives of the solution functions for parametric Markov chains (pMCs) and parametric robust Markov chains (prMCs).
-More specifically, we compute the partial derivatives of the solution function with respect to the parameters of these Markov models.
+More specifically, we compute the $k$ highest (or lowest) partial derivatives of the solution function with respect to the parameters of these Markov models.
 The artifact also contains an implementation of these methods in a learning framework, in which these derivatives are used to guide the exploration process (i.e., determining where to sample).
 
 # 1. Run from a Docker container
@@ -47,12 +47,12 @@ You will see a prompt inside the docker container. The README in this folder is 
 
 While for users, we recommend to use the Docker container, you can also build our tool from source as follows:
 
-- Install [Storm](https://www.stormchecker.org/documentation/obtain-storm/build.html), [pycarl](https://moves-rwth.github.io/pycarl/installation.html#installation-steps) and [stormpy](https://moves-rwth.github.io/stormpy/installation.html#installation-steps) using the instructions in the stormpy documentation.
+- Install [Storm](https://www.stormchecker.org/documentation/obtain-storm/build.html), [Pycarl](https://moves-rwth.github.io/pycarl/installation.html#installation-steps) and [Stormpy](https://moves-rwth.github.io/stormpy/installation.html#installation-steps) using the instructions in the stormpy documentation.
 
-  Note that one must use at least version 1.7.
+  Note that we have tested the artifact using Storm and Stormpy version 1.7.
   Preferably, install pycarl and stormpy in a virtual environment.
 
-- Obtain a Gurobi license and activate it on your machine.
+- Install [Gurobi](https://www.gurobi.com/downloads/), and obtain a Gurobi license and activate it on your machine.
 
 - Install the Python dependencies with:
 
@@ -62,11 +62,9 @@ While for users, we recommend to use the Docker container, you can also build ou
 
 There are three Python files that can be run:
 
-1. `run_pmc.py`
-2. `run_prmc.py`
-3. `run_learning.py`
-
-The `run_pmc.py` and `run_prmc.py` files compute the partial derivatives for a pMC and prMC, respectively, while the `run_learning.py` file runs the learning experiment.
+1. `run_pmc.py` - Compute partial derivatives for a pMC
+2. `run_prmc.py` - Compute partial derivatives for a prMC
+3. `run_learning.py` - Using derivatives to guide sampling in a learning framework
 
 A miminal command to compute derivatives for a pMC is as follows:
 
@@ -74,76 +72,117 @@ A miminal command to compute derivatives for a pMC is as follows:
 python run_pmc.py --model <path to model file> --parameters <path to parameters file> --formula <formula to check> --num_deriv <number of derivatives to compute>
 ```
 
-For example, to compute the `k=10` highest derivatives for pMC of the 50x50 slippery grid world benchmark with 100 parameters, you run:
+For example, to compute the $k=10$ highest derivatives for the pMC of the 50x50 slippery grid world benchmark (see [1] for details) with $|V|=100$ parameters, you run:
 
 ```
-timeout 3600s python3 run_pmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/double_pmc_size=50_params=100_seed=0.drn' --parameters 'models/slipgrid/double_pmc_size=50_params=100_seed=0_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
+timeout 3600s python3 run_pmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
 ```
 
-The command computes the solution of the given formula for this pMC (see Section 6 for details on the input model format), given the parameter instantiation provided in the JSON file, and computes the 10 highest partial derivatives.
+The command first computes the solution of the given formula for this pMC (see Section 6 for details on the input model format), given the parameter instantiation provided in the JSON file.
+Thereafter, the $k=10$ highest partial derivatives are computed.
 The results are then saved to a JSON file in the `output/` folder.
 
 The equivalent command to compute derivatives for the corresponding prMC is:
 
 ```
-timeout 3600s python3 run_prmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/double_pmc_size=50_params=100_seed=0.drn' --parameters 'models/slipgrid/double_pmc_size=50_params=100_seed=0_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
+timeout 3600s python3 run_prmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
 ```
 
-There is a variety of arguments that you can add to these scripts, in order to further customize the execution. See Section 5 for a complete overview of all available arguments.
+There are a variety of arguments that you can add to these scripts, in order to further customize the execution. See Section 5 for a complete overview of all available arguments.
 
 # 4. Reproducing results in the paper
 
-You can reproduce the figures and tables presented in our paper [1] by following the steps below.
+You can reproduce the figures and tables presented in our paper [1] by executing one of the shell scripts in the `experiments/` folder.
 Before running the experiments, we recommend to remove any existing files/folders in the output/ folder (except the .keep file).
 
-The experiments consist of three parts:
+- `cd experiments; bash run_experiments_full.sh` runs the full set of experiments as presented in [1]. Expected run time: multiple days.
+- `cd experiments; bash run_experiments_partial.sh` runs a partial set of experiments. Expected run time: 1.5 hours.
 
-### Part 1: Derivatives for slippery grid worlds
-The following comand runs all experiments on the slippery grid worlds:
+Both shell scripts in turn run three different sets of experiments, which can also be run independently from each other:
 
-```
-cd experiments; bash grid_world.sh
-```
+1. Computing derivatives on a variety of slippery grid world problems (`experiments/grid_world.sh` and `experiments/grid_world_partial.sh`).
+2. Computing derivatives on a set of benchmarks from the literature (`experiments/benchmarks.sh` and `experiments/benchmarks_partial.sh`).
+3. An application of our method in a learning framework (`run_learning.py`).
 
-The results are exported in a CSV file `output/slipgrid_table.csv` and LaTeX table `output/slipgrid_table.tex`.
-Tables 1 and 2 of the paper [1] are directly obtained through this LaTeX table.
+After running the experiments, the figures and tables presented in [1] can be reproduced as follows:
 
-### Part 2: Derivatives for benchmarks from literature
-The following comand runs all other benchmarks used in [1]:
+- Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/_slipgrid_table_partial.tex`). This data is also exported to a CSV file with the same name.
 
-```
-cd experiments; bash benchmarks_cav23.sh
-```
+- Table 3 (results for the benchmarks from the literature) is obtained through the LaTeX table exported to `output/benchmarks_table.tex` (or `output/benchmarks_partial_table.tex`). This data is also exported to a CSV file with the same name.
 
-Each benchmark has a timeout of 1 hour, so running al benchmarks can take long.
-
-For faster evaluation, you can also run a reduced set of benchmarks using:
-
-```
-cd experiments; bash benchmarks_cav23_partial.sh
-```
-
-The results are exported to a CSV file `output/benchmarks_cav23.csv` and a LaTeX table `output/benchmarks_cav23.tex`.
-Table 3 is the paper [1] is directly obtained through this LaTeX table.
-
-### Part 3: Learning framework
-The following Python script reproduces the application in a learning framework, presented in Section 6, Q3 of [1]:
-
-```
-python3 run_learning.py
-```
-
-This script runs the learning framework experiment for both the 20x20 slippy grid world, as well as the drone navigation problem, exactly as presented in [1].
-The script creates a plot `learning_{model}_{datetime}.pdf`, where `model` is either `slipgrid` or `drone`, and `{datetime}` is the datetime at which the file was generated.
-Moreover, Figure 7 of [1] is generated for both models using the CSV files `learning_{model}_{datetime}.csv`.
+- Figure 7 (results for the learning framework) is obtained using the data in `output/learning_gridworld_{datetime}.csv` and `output/learning_drone_{datetime}.csv`, where `{datetime}` is a datetime stamp of when file is created. A Python version of the plots in Figure 7 is exported to `output/learning_gridworld_{datetime}.pdf` and `output/learning_drone_{datetime}.pdf`.
 
 ### Recreating experiment shell scripts
-If you wish to change these experiments or reproduce these scripts (and the corresponding model), run the `generate_experiments.py` file in the root of this repository.
-This script (re)creates the shell scripts in the `experiments/` folder, as well as the corresponding pMC models (e.g., the randomized slippy grid worlds) in the `models/` folder.
+If you wish to change the experiment settings or reproduce the shell scripts (and the corresponding model), run the `generate_experiments.py` file in the root of this repository.
+This script (re)creates the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder.
 
 # 5. Overview of available arguments
 
+Below, we list all arguments that can be passed to the commands for running the Python scripts. The following arguments are given as `--<argument name> <value>`: 
+
+| Argument    | Required? | Default          | Type                     | Description |
+| ---         | ---       | ---              | ---                      | ---         |
+| model       | Yes       | n/a              | string                   | Model file, e.g., `models/slipgrid/pmc_size=50_params=100.drn` |
+| formula     | Yes       | n/a              | string                   | Formula to verify |
+| goal_label  | No        | None             | string                   | If the provided formula computes a reachability probability, the goal labels are those labels that correspond to goal states. Multiple goal labels can be passed, e.g., as `--goal_label "{'goal','notbad'}"`. |
+| instance    | No        | False            | string                   | Name of the instance to run (used as tag in the result export files) |
+| parameters  | No        | False            | string                   | Path to a parameter valuation file in JSON format (see Section 6 for details). If no file is provided, the `--default_valuation` argument is used. |
+| default_valuation | No  | 0.5              | float                    | Default parameter valuation. This value is assigned to every parameter, unless the `parameters` argument is provided. |
+| num_deriv   | No        | 1                | int                      | Number of derivatives to compute |
+| uncertainty_model | No  | Linf             | string                   | The type of uncertainty model used for prMCs, which can be `Linf` (infinity norm), `L1` (1-norm), or `Hoeffding` (using Hoeffding's inequality to obtain probability intervals) |
+| discount    | No        | 1                | float in [0,1]           | Discount factor |
+| output_folder | No      | output/          | string                   | Folder in which to export results |
+| validate_delta | No     | 1e-4             | float                    | Perturbation value used to validate gradients (not used if `--no_gradient_validation` is also passed) |
+| robust_bound | No       | upper            | string                   | Determines which robust bound to compute for prMCs. Can be either `upper` or `lower`. |
+| robust_confidence | No  | 0.9              | float in [0,1]           | Confidence level on individual PAC probability intervals (only used if `Hoeffding` is used as value for `--uncertainty_model`) |
+
+Moreover, a number of boolean arguments can be added as `--<argument name>`:
+
+| Argument    | Required? | Default          | Type                     | Description |
+| ---         | ---       | ---              | ---                      | ---         |
+| no_par_dependencies | No | False           | boolean                  | If added, parameter dependencies between distributions are avoided for prMCs. |
+| scale_reward | No       | False            | boolean                  | If added, rewards for prMCs are normalized to one (can improve numerical stability for high solutions) |
+| verbose     | No        | False            | boolean                  | If added, additional output is provided by the scripts |
+| no_export   | No        | False            | boolean                  | If added, no results are exported |
+| no_gradient_validation | No | False            | boolean              | If added, the validation of computed derivatives by an empirical perturbation analysis is skipped |
+| explicit_baseline | No  | False            | boolean                  | If added, a baseline that computes all partial derivatives explicitly is performed |
+
+Finally, a number of arguments are only used by the learning framework (`run_learning.py`):
+
+| Argument        | Required? | Default          | Type                     | Description |
+| ---             | ---       | ---              | ---                      | ---         |
+| true_param_file | No        | False            | string                   | Path to the file with the true parameter valuations. If not passed, the `--default_valuation` value is used for the true parameter values. |
+| learning_iterations | No    | 1                | int                      | Number of iterations for each exploration method in the learning framework |
+| learning_steps  | No        | 100              | int                      | Number of steps to take in each iteration |
+| learning_samples_per_step | No | 25            | int                      | Number of additional samples to obtain in each step in the learning framework |
+| default_sample_size | No    | 100              | int                      | Default number of samples for each parameter to start with (not used if these sample sizes are already provided in the file passed to `--parameters`) |
+
 # 6. Defining parametric (robust) Markov chains
+
+### Parametric Markov chains
+Our implementation supports pMCs defined in [standard Prism format](https://prismmodelchecker.org/manual/ThePRISMLanguage/Introduction), or in explicit format (`*.drn` files).
+Using explicit format can significantly reduce the time to parse large models, and is thus used for the grid world benchmarks.
+See the .drn files in the `models/slipgrid/` folder for examples of how these models are defined.
+
+### Parametric robust Markov chains
+When running `run_prmc.py` for prMCs, the script actually loads a pMC and extends this model into a prMC, by creating uncertainty sets around the provided parameter instantiation.
+
+### Parameter valuation files
+A parameter instantiation can be passed through the `--default_valuation` argument (see Section 5), or by providing a file using the `--parameters` argument.
+This parameter instantiation file assigns a value to each parameter and (optionally) a sample size for each of the parameters.
+For example, the slippery grid world model in `models/slipgrid/pmc_size=10_params=10.drn` has 10 parameters, so its parameter instantiation file `models/slipgrid/pmc_size=10_params=10_mle.json` is defined as:
+
+```
+{"v0": [0.20853080568720378, 844], "v1": [0.19893617021276597, 940], "v2": [0.15224191866527634, 959], "v3": [0.10526315789473684, 608], "v4": [0.13810741687979539, 782], "v5": [0.10300429184549356, 932], "v6": [0.13925729442970822, 754], "v7": [0.18058455114822547, 958], "v8": [0.12708333333333333, 960], "v9": [0.12384473197781885, 541]}
+```
+
+Here, each parameter is assigned a value and a sample size. For example, parameter v0 has a value of 0.2085 and a sample size of 844.
+The sample sizes are used for prMCs with Hoeffding's inequality as uncertainty model.
+For pMCs, it is also possible to simply omit the sample sizes, for example as in the file `models/slipgrid/pmc_size=10_params=10.json`:
+
+```
+{"v0": 0.1971945002499666, "v1": 0.1878193471347177, "v2": 0.15096243767199002, "v3": 0.10557146937016064, "v4": 0.14511592145209282, "v5": 0.10199876654087588, "v6": 0.14417109212488455, "v7": 0.19795867288127286, "v8": 0.13594444639693215, "v9": 0.1480893530836163}
+```
 
 # 7. Rebuilding the Docker container
 
