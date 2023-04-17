@@ -206,6 +206,7 @@ for name,suite in suites.items():
             else:
                 text_partial += [command]
             
+            suffix  = "--num_deriv {} --explicit_baseline --no_gradient_validation --no_par_dependencies".format(int(k))
             
             # Add command for prMC benchmark, without parameter dependencies
             command = " ".join([prefix_prmc, model_string, formula_string, additional_string, output, suffix])+';'
