@@ -26,9 +26,9 @@ if __name__ == "__main__":
     
     if args.files is not None:
         args.files = literal_eval(args.files)
-        assert type(args.goal_label) == list
-        
-    args.files = ['output/slipgrid_partial_table.csv', 'output/benchmarks_partial_table.csv']
+        assert type(args.files) == list
+    
+    print('Arg.files:', args.files[0])
     
     # Load the provided CSV files
     df = {}
