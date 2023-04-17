@@ -1,7 +1,7 @@
 import argparse
 from ast import literal_eval
 
-def parse_main(manualModel=None):
+def parse_main(manualModel=None, learning=False):
     """
     Function to parse arguments provided
 
@@ -35,16 +35,12 @@ def parse_main(manualModel=None):
                         help="Avoid prMCs with parameters that are shared between states")
     parser.set_defaults(no_par_dependencies=False)
     
-    # Path to parameter valuation file to load
-    parser.add_argument('--true_param_file', type=str, action="store", dest='true_param_file', 
-                        default=False, help="Path to True parameter valuation file (used for learning experiments)")
-    
     # Temporal logic formula
     parser.add_argument('--formula', type=str, action="store", dest='formula', 
                         default=None, help="Formula to verify")
     
     parser.add_argument('--goal_label', type=str, action="store", dest='goal_label', 
-                        default=None, help="For reachability probabilities, the label of the goal states (currently only support single label)")
+                        default=None, help="For reachability probabilities, the label of the goal states")
     
     # Type of uncertainty model fo use
     parser.add_argument('--uncertainty_model', type=str, action="store", dest='uncertainty_model', 
@@ -67,10 +63,6 @@ def parse_main(manualModel=None):
     
     
     ### PROGRAM SETTINGS ###  
-    # CVX solver
-    parser.add_argument('--solver', type=str, action="store", dest='solver', 
-                        default='GUROBI', help="Solver to solve convex optimization problems with")
-    
     parser.add_argument('--num_deriv', type=int, action="store", dest='num_deriv', 
                         default=1, help="Number of K derivatives to return")
     
@@ -89,12 +81,7 @@ def parse_main(manualModel=None):
     
     
     
-    ### GRADIENT SETTINGS ###    
-    # Switch to validate gradients empirically
-    parser.add_argument('--validate_gradients', dest='validate_gradients', action='store_true',
-                        help="Validate gradients by an empirical perturbation analysis")
-    parser.set_defaults(validate_gradients=False)
-    
+    ### GRADIENT SETTINGS ###        
     parser.add_argument('--validate_delta', type=float, action="store", dest='validate_delta', 
                         default=1e-4, help="Perturbation value to validate gradients")
     
@@ -112,7 +99,28 @@ def parse_main(manualModel=None):
     parser.add_argument('--robust_confidence', type=float, action="store", dest='robust_confidence', 
                         default=0.9, help="Confidence level on individual PAC probability intervals")
     
-    
+    # Set additional arguments for the learning framework
+    if learning:
+        # Path to true parameter valuation file to load
+        parser.add_argument('--true_param_file', type=str, action="store", dest='true_param_file', 
+                            default=False, help="Path to True parameter valuation file (used for learning experiments)")
+        
+        # Number of iterations for each exploration method in the learning framework
+        parser.add_argument('--learning_iterations', type=int, action="store", dest='learning_iterations', 
+                            default=1, help="Number of iterations for each exploration method in the learning framework")
+        
+        # Number of steps to take in each iteration
+        parser.add_argument('--learning_steps', type=int, action="store", dest='learning_steps', 
+                            default=100, help="Number of steps to take in each iteration")
+        
+        # Number of samples to take in each step in the learning framework
+        parser.add_argument('--learning_samples_per_step', type=int, action="store", dest='learning_samples_per_step', 
+                            default=25, help="Number of samples to take in each step in the learning framework")
+        
+        # Default number of samples for each parameter to start with (unless a parameter file is given)
+        parser.add_argument('--default_sample_size', type=int, action="store", dest='default_sample_size', 
+                            default=100, help="Default number of samples for each parameter to start with (unless a parameter file is given)")
+        
     
     # Now, parse the command line arguments and store the
     # values in the `args` variable
@@ -122,7 +130,7 @@ def parse_main(manualModel=None):
         args.goal_label = literal_eval(args.goal_label)
         assert type(args.goal_label) == set
     
-    assert args.uncertainty_model in ['Linf', 'L1', 'hoeffding']
+    assert args.uncertainty_model in ['Linf', 'L1', 'Hoeffding']
     
     assert args.robust_bound in ['upper', 'lower']
     

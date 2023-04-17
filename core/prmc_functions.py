@@ -178,7 +178,7 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
     M.paramIndex = np.array(list(M.parameters.keys()))
     
     if T:
-        T.times['instantiate'] = time.time() - start_time
+        T.times['initialize_model'] = time.time() - start_time
     
     return M
 
@@ -214,7 +214,7 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
     P.solve(store_initial = True, verbose=solver_verbose)
     
     if T:
-        T.times['verify'] = time.time() - start_time
+        T.times['verify_model'] = time.time() - start_time
        
     print('Range of solutions: [{}, {}]'.format(np.min(P.x_tilde), np.max(P.x_tilde)))
     print('Solution in initial state: {}\n'.format(P.x_tilde[pmc.sI['s']] @ pmc.sI['p']))
@@ -251,19 +251,24 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
 
     '''
     
-    start_time = time.time()
     # Create object for computing gradients
+    start_time = time.time()
     G = gradient(prmc, args.robust_bound)
     
     # Update gradient object with current solution
-    G.update(prmc, P)
+    G.update_LHS(prmc, P)
     if T:
-        T.times['build_matrices'] = time.time() - start_time
-    
-    deriv = {}
+        T.times['compute_LHS_matrix'] = time.time() - start_time
+        
+    start_time = time.time()
+    G.update_RHS(prmc, P)
+    if T:
+        T.times['compute_RHS_matrix'] = time.time() - start_time
     
     print('Compute parameter importance via LP (GurobiPy)...')
     start_time = time.time()
+    
+    deriv = {}
     
     if args.robust_bound == 'lower':
         direction = GRB.MAXIMIZE
@@ -283,8 +288,8 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
         deriv['LP_pars'] = par.name()
         
     if T:
-        T.times['derivative_LP'] = time.time() - start_time   
-        print('- LP solved in: {:.3f} sec.'.format(T.times['derivative_LP']))
+        T.times['solve_k_highest_derivatives'] = time.time() - start_time   
+        print('- LP solved in: {:.3f} sec.'.format(T.times['solve_k_highest_derivatives']))
     print('- Obtained derivatives are {} for parameters {}'.format(deriv['LP'],  deriv['LP_pars']))
             
     return G, deriv

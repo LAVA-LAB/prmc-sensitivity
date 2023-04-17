@@ -138,14 +138,14 @@ suites = {
     }
 
 # Main configurations
-OUTPUT_FOLDER           = "output/benchmarks_cav23"
-OUTPUT_FOLDER_PARTIAL   = "output/benchmarks_cav23_partial" 
+OUTPUT_FOLDER           = "output/benchmarks"
+OUTPUT_FOLDER_PARTIAL   = "output/benchmarks_partial" 
 
-TABLE_NAME              = "output/benchmarks_cav23"
-TABLE_NAME_PARTIAL      = "output/benchmarks_cav23_partial"
+TABLE_NAME              = "output/benchmarks_table"
+TABLE_NAME_PARTIAL      = "output/benchmarks_partial_table"
 
-BASH_OUT_FILE           = "experiments/benchmarks_cav23.sh"
-BASH_OUT_FILE_PARTIAL   = "experiments/benchmarks_cav23_partial.sh"
+BASH_OUT_FILE           = "experiments/benchmarks.sh"
+BASH_OUT_FILE_PARTIAL   = "experiments/benchmarks_partial.sh"
 
 NUMBER_DERIVATIVES      = [1, 10]
 
@@ -187,8 +187,7 @@ for name,suite in suites.items():
             formula_string = "--formula '{}'".format(str(exp['formula']))
             additional_string = exp['extra']
             
-            suffix  = "--num_deriv {} --explicit_baseline".format(int(k))
-            
+            suffix  = "--num_deriv {} --explicit_baseline --no_gradient_validation".format(int(k))
             
             # Add command for pMC benchmark
             command = " ".join([prefix_pmc, model_string, formula_string, additional_string, output, suffix])+';'
@@ -208,8 +207,7 @@ for name,suite in suites.items():
                 text_partial += [command]
             
             
-            # Add command for prMC benchmark
-            suffix  = "--num_deriv {} --explicit_baseline".format(int(k))
+            # Add command for prMC benchmark, without parameter dependencies
             command = " ".join([prefix_prmc, model_string, formula_string, additional_string, output, suffix])+';'
             
             if mode == 'full':
@@ -339,99 +337,138 @@ cases = [
     (800,   10000)
     ]
 
+cases_partial = [
+    (10,    10),
+    (20,    100),
+    (50,    50),
+    (50,    100),
+    (50,    1000)
+    ]
+
 slipping_prob_range = [0.10, 0.20]
 
 # Number of parameters to estimate probabilities with
 Nmin = 500
 Nmax = 1000
 
-iterations = 1
-
-BASH_FILE = ["#!/bin/bash",
-             "cd ..;",
-             'echo -e "START GRID WORLD EXPERIMENTS...";']
-
 number_derivatives = [1, 10]
 
-for num_derivs in number_derivatives:
-  for (Z,V) in cases:
-    for mode in ['double']:
-      
-        N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
+BASH_FILE = {
+    'full': ["#!/bin/bash",
+             "cd ..;",
+             'echo -e "START GRID WORLD EXPERIMENTS (FULL VERSION)...";'],
+    'partial': ["#!/bin/bash",
+             "cd ..;",
+             'echo -e "START GRID WORLD EXPERIMENTS (FULL VERSION)...";'],
+    }
+
+BASH_PARTIAL = []
+
+prefix_pmc  = ["timeout 3600s python3 run_pmc.py"]
+prefix_prmc = ["timeout 3600s python3 run_prmc.py"]
+
+# Create slipgrid model files
+for (Z,V) in cases:
+
+    np.random.seed(0)
+            
+    model_name = "models/slipgrid/pmc_size={}_params={}".format(Z,V)
+    
+    # By default, put package in top right corner and warehouse in bottom left
+    loc_package   = (Z-2, 1)
+    loc_warehouse = (1, Z-2)
+    
+    if V > Z**2:
+        print('Skip configuration, because no. params exceed no. states.')
+        continue
+    
+    # Set ID's of terrain types
+    terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
+            
+    # Set slipping probabilities (v1 corresponds with terrin type 1)
+    slipping_probabilities = {
+        'v'+str(i): np.random.uniform(slipping_prob_range[0], 
+                                      slipping_prob_range[1]) for i in range(V)
+        }
+        
+    # Minimum transition probability estimate
+    delta = 1e-4
+    
+    # Obtain point estimates for each of the transition probabilities
+    slipping_estimates = {}
+    N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
+    for i,(v,p) in enumerate(slipping_probabilities.items()):
+        
+        slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), int(N[i])]
+       
+    json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
+    with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+        json.dump(slipping_probabilities, fp)
+        
+    json_mle_path  = str(Path(ROOT_DIR, str(model_name)+'_mle.json'))
+    with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+        json.dump(slipping_estimates, fp)
+    
+    # Scale reward with the size of the grid world
+    reward = 10**(-math.floor(math.log(Z**2, 10)))
+    
+    drn_path = generate_pmc_random_drn(ROOT_DIR, N, terrain, model_name,
+                            loc_package, loc_warehouse, reward, slipmode = 'double')
+
+    command = ['--instance "grid({},{})"'.format(Z,V),
+               "--model '{}'".format(drn_path),
+               "--parameters '{}'".format(json_mle_path),
+               "--formula 'Rmin=? [F \"goal\"]'",
+               "--robust_bound 'upper'"]
+    
+    for mode in ['full', 'partial']:
+      # If mode is partial, check if this case should actually be included
+      if mode == 'partial' and (Z,V) not in cases_partial:
+        continue
+        
+      # For all number of derivatives
+      for num_derivs in number_derivatives:
           
-        for seed in range(iterations):
-                    
-            np.random.seed(0)
-                    
-            model_name = "models/slipgrid/{}_pmc_size={}_params={}_seed={}".format(mode,Z,V,seed)
-            
-            # By default, put package in top right corner and warehouse in bottom left
-            loc_package   = (Z-2, 1)
-            loc_warehouse = (1, Z-2)
-            
-            if V > Z**2:
-                print('Skip configuration, because no. params exceed no. states.')
-                continue
-            
-            # Set ID's of terrain types
-            terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
-            
-            # Set slipping probabilities (v1 corresponds with terrin type 1)
-            slipping_probabilities = {
-                'v'+str(i): np.random.uniform(slipping_prob_range[0], 
-                                              slipping_prob_range[1]) for i in range(V)
-                }
-            
-            # Minimum transition probability estimate
-            delta = 1e-4
-            
-            # Obtain point estimates for each of the transition probabilities
-            slipping_estimates = {}
-            for i,(v,p) in enumerate(slipping_probabilities.items()):
-                
-                slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), int(N[i])]
-               
-            json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
-            with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
-                json.dump(slipping_probabilities, fp)
-                
-            json_mle_path  = str(Path(ROOT_DIR, str(model_name)+'_mle.json'))
-            with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
-                json.dump(slipping_estimates, fp)
-            
-            # Scale reward with the size of the grid world
-            reward = 10**(-math.floor(math.log(Z**2, 10)))
-            
-            drn_path = generate_pmc_random_drn(ROOT_DIR, N, terrain, model_name,
-                                    loc_package, loc_warehouse, reward, slipmode = mode)
-            
-            prefix_pmc  = ["timeout 3600s python3 run_pmc.py"]
-            prefix_prmc = ["timeout 3600s python3 run_prmc.py"]
-            
-            command = ['--instance "grid({},{},{})"'.format(Z,V,mode),
-                       "--model '{}'".format(drn_path),
-                       "--parameters '{}'".format(json_mle_path),
-                       "--formula 'Rmin=? [F \"goal\"]'",
-                       # "--validate_delta -0.001",
-                       "--output_folder 'output/slipgrid/'",
-                       "--num_deriv {}".format(num_derivs),
-                       "--explicit_baseline",
-                       "--robust_bound 'upper'",
-                       "--scale_reward"]
-            
-            if num_derivs > 1:
-                command += ["--no_gradient_validation"]
-            
-            BASH_FILE += [" ".join(prefix_pmc + command)+";"]
-            
-            if not ((Z >= 400) or (Z >= 200 and V > 100)):
-                BASH_FILE += [" ".join(prefix_prmc + command)+";"]
+        numderiv = ["--num_deriv {}".format(num_derivs)]
         
-BASH_FILE += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'output/slipgrid_table' --mode 'gridworld'"]
+        # Set output folder
+        if mode == 'full':
+            outfolder = ["--output_folder 'output/slipgrid/'"]
+        else:
+            outfolder = ["--output_folder 'output/slipgrid_partial/'"]
         
+        suffix = []
+
+        # Depending on the number of derivatives, set certain arguments
+        if num_derivs > 1:
+            # If multiple derivatives are computed, skip the validation
+            suffix += ["--no_gradient_validation"]
+        else:
+            # Only perform the explicit baseline (computing all derivatives)
+            # if 1 derivative is computed
+            suffix += ["--explicit_baseline"]
+            
+        BASH_FILE[mode] += [" ".join(prefix_pmc + command + numderiv + outfolder + suffix)+";"]
+        
+        # Only perform experiments for prMCs with grids up to size 200x200
+        if Z <= 200:
+            BASH_FILE[mode] += [" ".join(prefix_prmc + command + numderiv + outfolder + suffix)+";"]
+
+BASH_FILE['full']    += ["#", "python3 create_table.py --folder 'output/slipgrid/' --table_name 'output/slipgrid_table' --mode 'gridworld'"]  
+
 # Export bash file to perform grid world experiments
 with open(str(Path(ROOT_DIR,'experiments/grid_world.sh')), 'w') as f:
-    f.write("\n".join(BASH_FILE))
+    f.write("\n".join(BASH_FILE['full']))
+
+print('\nExported full grid world experiment shell script')
+
+BASH_FILE['partial'] += ["#", "python3 create_table.py --folder 'output/slipgrid_partial/' --table_name 'output/slipgrid_partial_table' --mode 'gridworld'"]        
+        
+# Export bash file to perform grid world experiments
+with open(str(Path(ROOT_DIR,'experiments/grid_world_partial.sh')), 'w') as f:
+    f.write("\n".join(BASH_FILE['partial']))
+
+print('\nExported partial grid world experiment shell script')
 
 # %%
 
@@ -453,75 +490,120 @@ Nmax = 100
 iterations = [0]
 BIAS = True
 
-for (Z,V) in cases:
-    for mode in ['double']:
+for (Z,V) in cases:      
+    N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
       
-        N = np.array(np.random.uniform(low=Nmin, high=Nmax, size=V), dtype=int)
-          
-        for seed in iterations:
-                    
-            np.random.seed(seed)
-                    
-            model_name = "models/slipgrid_learning/{}_pmc_size={}_params={}_seed={}".format(mode,Z,V,seed)
-            
-            # By default, put package in top right corner and warehouse in bottom left
-            loc_package   = (Z-1, 0)
-            loc_warehouse = (0, Z-1)
-            
-            if V > Z**2:
-                print('Skip configuration, because no. params exceed no. states.')
-                continue
-            
-            # Set ID's of terrain types
-            if BIAS:
+    np.random.seed(0)
                 
-                order = np.arange(0, V)
-                np.random.shuffle(order)
+    model_name = "models/slipgrid_learning/pmc_size={}_params={}".format(Z,V)
+    
+    # By default, put package in top right corner and warehouse in bottom left
+    loc_package   = (Z-1, 0)
+    loc_warehouse = (0, Z-1)
+    
+    if V > Z**2:
+        print('Skip configuration, because no. params exceed no. states.')
+        continue
+    
+    # Set ID's of terrain types
+    if BIAS:
+        
+        order = np.arange(0, V)
+        np.random.shuffle(order)
+        
+        listA = np.random.randint(low=0, high=10, size=int(Z**2/2))
+        terrainA = order[listA]
+        listB = np.random.randint(low=10, high=30, size=int(Z**2/4))
+        terrainB = order[listB]
+        listC = np.random.randint(low=30, high=V, size=int(Z**2/4))
+        terrainC = order[listC]
+    
+        terrain = np.concatenate((terrainA, terrainB, terrainC))
+        np.random.shuffle(terrain)
+        terrain = np.reshape(terrain, (Z,Z))
+    
+    else:
+        terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
+    
+    # print('Terrain:')
+    # print(terrain)
+    # for w in range(V):
+    #     print(w,':',len(np.where(terrain == w)[0]))
                 
-                listA = np.random.randint(low=0, high=10, size=int(Z**2/2))
-                terrainA = order[listA]
-                listB = np.random.randint(low=10, high=30, size=int(Z**2/4))
-                terrainB = order[listB]
-                listC = np.random.randint(low=30, high=V, size=int(Z**2/4))
-                terrainC = order[listC]
-            
-                terrain = np.concatenate((terrainA, terrainB, terrainC))
-                np.random.shuffle(terrain)
-                terrain = np.reshape(terrain, (Z,Z))
-            
-            else:
-                terrain = np.random.randint(low = 0, high = V, size=(Z,Z))
-            
-            print('Terrain:')
-            print(terrain)
-            for w in range(V):
-                print(w,':',len(np.where(terrain == w)[0]))
-                        
-            # Set slipping probabilities (v1 corresponds with terrin type 1)
-            slipping_probabilities = {
-                'v'+str(i): np.random.uniform(slipping_prob_range[0], 
-                                              slipping_prob_range[1]) for i in range(V)
-                }
-            
-            # Minimum transition probability estimate
-            delta = 1e-4
-            
-            # Obtain point estimates for each of the transition probabilities
-            slipping_estimates = {}
-            for i,(v,p) in enumerate(slipping_probabilities.items()):
-                
-                slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), int(N[i])]
-               
-            json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
-            with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
-                json.dump(slipping_probabilities, fp)
-                
-            json_mle_path  = str(Path(ROOT_DIR, str(model_name)+'_mle.json'))
-            with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
-                json.dump(slipping_estimates, fp)
-            
-            # Scale reward with the size of the grid world
-            reward = 10**(-math.floor(math.log(Z**2, 10)))
-            
-            drn_path = generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
-                                    loc_package, loc_warehouse, reward, slipmode = mode)
+    # Set slipping probabilities (v1 corresponds with terrin type 1)
+    slipping_probabilities = {
+        'v'+str(i): np.random.uniform(slipping_prob_range[0], 
+                                      slipping_prob_range[1]) for i in range(V)
+        }
+    
+    # Minimum transition probability estimate
+    delta = 1e-4
+    
+    # Obtain point estimates for each of the transition probabilities
+    slipping_estimates = {}
+    for i,(v,p) in enumerate(slipping_probabilities.items()):
+        
+        slipping_estimates[v] = [max(min(np.random.binomial(N[i], p) / N[i], 1-delta), delta), int(N[i])]
+       
+    json_path  = str(Path(ROOT_DIR, str(model_name)+'.json'))
+    with open(r'{}.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+        json.dump(slipping_probabilities, fp)
+        
+    json_mle_path  = str(Path(ROOT_DIR, str(model_name)+'_mle.json'))
+    with open(r'{}_mle.json'.format(str(Path(ROOT_DIR, str(model_name)))), 'w') as fp:
+        json.dump(slipping_estimates, fp)
+    
+    # Scale reward with the size of the grid world
+    reward = 10**(-math.floor(math.log(Z**2, 10)))
+    
+    drn_path = generate_pmc_learning_drn(ROOT_DIR, N, terrain, model_name,
+                            loc_package, loc_warehouse, reward, slipmode = 'double')
+
+# %%
+
+########################################################################
+# Generate combined shell scripts to run partial/full experiment sets  #
+
+# FULL BENCHMARK SET
+SHELL = ["#!/bin/bash",
+         'echo -e "START FULL SET OF EXPERIMENTS...";',
+         '',
+         'echo -e "\\nStart grid world experiments...\\n\\n";',
+         'bash grid_world.sh;',
+         '',
+         'echo -e "\\nStart other benchmarks...\\n\\n";',
+         'bash benchmarks.sh;',
+         '',
+         'echo -e "\\nStart learning experiments...\\n\\n";',
+         'cd ..;',
+         '''python3 run_learning.py --instance gridworld --model models/slipgrid_learning/pmc_size=20_params=100.drn --parameters models/slipgrid_learning/pmc_size=20_params=100_mle.json --formula 'Rmin=? [F "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --true_param_file models/slipgrid_learning/pmc_size=20_params=100.json --learning_iterations 10 --learning_steps 1000 --learning_samples_per_step 25;''',
+         '''python3 run_learning.py --instance drone --model models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn --formula 'P=? ["notbad" U "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --goal_label "{'goal','notbad'}" --default_sample_size 100 --learning_iterations 10 --learning_steps 1000 --learning_samples_per_step 25;'''
+         ]
+
+# Export bash file to perform grid world experiments
+with open(str(Path(ROOT_DIR,'experiments/all_experiments_full.sh')), 'w') as f:
+    f.write("\n".join(SHELL))
+
+print('\nExported shell scripts to run all experiments (full version)')
+
+# PARTIAL BENCHMARK SET
+SHELL = ["#!/bin/bash",
+         'echo -e "START FULL SET OF EXPERIMENTS...";',
+         '',
+         'echo -e "\\nStart grid world experiments...\\n\\n";',
+         'bash grid_world_partial.sh;',
+         '',
+         'echo -e "\\nStart other benchmarks...\\n\\n";',
+         'bash benchmarks_partial.sh;',
+         '',
+         'echo -e "\\nStart learning experiments...\\n\\n";',
+         'cd ..;',
+         '''python3 run_learning.py --instance gridworld --model models/slipgrid_learning/pmc_size=20_params=100.drn --parameters models/slipgrid_learning/pmc_size=20_params=100_mle.json --formula 'Rmin=? [F "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --true_param_file models/slipgrid_learning/pmc_size=20_params=100.json --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 25;''',
+         '''python3 run_learning.py --instance drone --model models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn --formula 'P=? ["notbad" U "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --goal_label "{'goal','notbad'}" --default_sample_size 100 --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 25;'''
+         ]
+
+# Export bash file to perform grid world experiments
+with open(str(Path(ROOT_DIR,'experiments/all_experiments_partial.sh')), 'w') as f:
+    f.write("\n".join(SHELL))
+
+print('\nExported shell scripts to run all experiments (partial version)')

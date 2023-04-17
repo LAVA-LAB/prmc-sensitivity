@@ -130,21 +130,29 @@ def pmc_verify(instantiated_model, pmc, point, T = False):
     start_time = time.time()
     
     # After that, use spsolve to obtain the actual solution    
-    J, result = verify_linear_program(instantiated_model, pmc.reward, pmc.scheduler_prob)
-    #J, result = verify_spsolve(instantiated_model, pmc.reward, pmc.scheduler_prob)
+    # J, result = verify_linear_program(instantiated_model, pmc.reward, pmc.scheduler_prob)
+
+    print('- Verify by solving sparse equation system...')        
+    start_time = time.time()
+    J = define_sparse_LHS(instantiated_model, pmc.scheduler_prob)
+    if T:
+        T.times['compute_LHS_matrix'] = time.time() - start_time
+
+    start_time = time.time()
+    result = sparse.linalg.spsolve(J, pmc.reward)  
     
     if T:
-        if not 'verify' in T.times:
-            T.times['verify'] = time.time() - start_time
+        T.times['verify_model'] = time.time() - start_time
+
+        print('- Time to solve equation system:', T.times['verify_model'])
     
     print('Range of solutions: [{}, {}]'.format(np.min(result), np.max(result)))
     print('Solution in initial state: {}\n'.format(result[pmc.sI['s']] @ pmc.sI['p']))
         
     start_time = time.time()
     Ju = define_sparse_RHS(pmc.model, pmc.parameters, pmc.get_parameters_to_states(), result, point, pmc.scheduler_prob)
-    
     if T:
-        T.times['build_matrices'] = time.time() - start_time
+        T.times['compute_RHS_matrix'] = time.time() - start_time
 
     # Retrieve actual solution
     solution_sI = result[pmc.sI['s']] @ pmc.sI['p']
@@ -175,17 +183,6 @@ def convert_scheduler(model, scheduler):
         prob_scheduler[state.id][action] = 1
         
     return prob_scheduler
-        
-
-
-def verify_spsolve(model, reward, scheduler):
-
-    print('- Verify by solving sparse equation system...')    
-    
-    J = define_sparse_LHS(model, scheduler)
-    result = sparse.linalg.spsolve(J, reward)  
-        
-    return J, result
 
 
 

@@ -1,6 +1,5 @@
 from core.sensitivity import solve_cvx_gurobi
-from core.baseline_gradient import explicit_gradient
-from core.verify_pmc import verify_spsolve, verify_pmdp_storm, verify_pmc_storm, \
+from core.verify_pmc import verify_pmdp_storm, verify_pmc_storm, \
     define_sparse_LHS, verify_linear_program
 
 import numpy as np
@@ -48,14 +47,9 @@ def pmc_derivative_LP(pmc, J, Ju, args, T = False):
     deriv['LP_pars'] = pmc.parameters[ deriv['LP_idxs']][0].name
 
     if T:
-        T.times['derivative_LP'] = time.time() - start_time   
-        print('- LP solved in: {:.3f} sec.'.format(T.times['derivative_LP']))
+        T.times['solve_k_highest_derivatives'] = time.time() - start_time   
+        print('- LP solved in: {:.3f} sec.'.format(T.times['solve_k_highest_derivatives']))
     print('- Obtained derivatives are {} for parameters {}'.format(deriv['LP'],  deriv['LP_pars']))
-
-    if args.explicit_baseline:
-        print('-- Execute baseline: compute all gradients explicitly')
-        
-        deriv['explicit'] = explicit_gradient(pmc, args, J, Ju, T)
             
     return optm, deriv
 
@@ -93,8 +87,10 @@ def pmc_validate_derivative(pmc, inst, solution, deriv, delta):
         instantiated_model, point = pmc_instantiate(pmc, inst['valuation'])
         
         # After that, use spsolve to obtain the actual solution    
-        _, result = verify_linear_program(instantiated_model, pmc.reward, pmc.scheduler_prob)
-        # _, result = verify_spsolve(instantiated_model, pmc.reward, pmc.scheduler_prob)
+        # _, result = verify_linear_program(instantiated_model, pmc.reward, pmc.scheduler_prob)
+
+        J = define_sparse_LHS(instantiated_model, pmc.scheduler_prob)
+        result = sparse.linalg.spsolve(J, pmc.reward)  
             
         # Extract solution
         solution_new = result[pmc.sI['s']] @ pmc.sI['p']
@@ -177,8 +173,6 @@ def pmc_instantiate(pmc, valuation, T = False):
 
     '''
     
-    start_time = time.time()
-    
     if pmc.model.model_type.name == 'MDP':
         instantiator = stormpy.pars.PMdpInstantiator(pmc.model)
     else:
@@ -190,9 +184,6 @@ def pmc_instantiate(pmc, valuation, T = False):
         point[x] = stormpy.RationalRF(float(valuation[x.name]))
         
     instantiated_model = instantiator.instantiate(point)
-    
-    if T:
-        T.times['instantiate'] = time.time() - start_time
         
     return instantiated_model, point
 

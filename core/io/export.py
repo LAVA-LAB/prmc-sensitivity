@@ -8,6 +8,7 @@ import sys
 class timer:
     def __init__(self):
         self.times = {}
+        self.notes = []
 
 def export_json(args, MODEL, T, inst, solution, deriv):
 
@@ -20,6 +21,7 @@ def export_json(args, MODEL, T, inst, solution, deriv):
     if isinstance(MODEL, PMC):
         nr_states = MODEL.model.nr_states
         nr_transitions = MODEL.model.nr_transitions
+        nr_parameters = len(MODEL.parameters)
         model_type = 'pMC'
         
         parameters = MODEL.parameters
@@ -28,6 +30,7 @@ def export_json(args, MODEL, T, inst, solution, deriv):
     elif isinstance(MODEL, PRMC):
         nr_states = len(MODEL.states)
         nr_transitions = MODEL.nr_transitions
+        nr_parameters = len(MODEL.parameters)
         model_type = 'prMC'
         
         parameters = MODEL.parameters
@@ -43,21 +46,23 @@ def export_json(args, MODEL, T, inst, solution, deriv):
            'Formula': args.formula,
            'States': nr_states,
            'Transitions': nr_transitions,
-           'Parameters': len(inst['valuation']),
+           'Parameters': nr_parameters,
            #
            'Solution': np.round(solution, 6),
-           'Model instantiate [s]': np.round(T.times['instantiate'], 6),
-           'Model verify [s]': np.round(T.times['verify'], 6),
+           'Model instantiate [s]': np.round(T.times['initialize_model'], 6),
+           'Model verify [s]': np.round(T.times['verify_model'], 6),
            #
-           'Num. derivatives': args.num_deriv
+           'Num. derivatives': args.num_deriv,
+           'Notes': "; ".join(T.notes)
            }
     
     if args.explicit_baseline:
-        OUT['Differentiate one [s]'] = np.round(T.times['solve_explicit_one'], 6)
-        OUT['Differentiate explicitly [s]'] = np.round(T.times['solve_explicit_all'], 3)
+        OUT['Solve one derivative [s]'] = np.round(T.times['solve_one_derivative'], 6)
+        OUT['Solve all derivatives [s]'] = np.round(T.times['solve_all_derivatives'], 3)
     
-    OUT['LP (define matrices) [s]'] = np.round(T.times['build_matrices'], 6)
-    OUT['LP (solve) [s]'] = np.round(T.times['derivative_LP'], 6)
+    OUT['Compute LHS matrices [s]'] = np.round(T.times['compute_LHS_matrix'], 6)
+    OUT['Compute RHS matrices [s]'] = np.round(T.times['compute_RHS_matrix'], 6)
+    OUT['Derivative LP (build and solve) [s]'] = np.round(T.times['solve_k_highest_derivatives'], 6)
     
     if args.num_deriv > 1:
         OUT['Max. derivatives'] = list(np.round(deriv['LP'], 6))

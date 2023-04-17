@@ -111,17 +111,19 @@ class gradient:
         self.A23 = sparse.block_diag([np.ones(( n, 1 )) for n in M.robust_successors.values() ])
     
     
-    def update(self, M, CVX):
+    def update_LHS(self, M, CVX):
         
         # Check if the size of the PRMC agrees with the size of the cvx problem
         assert len(CVX.keepalpha) + len(CVX.keeplambda) == M.robust_constraints
-        
-        nr_robust_successors = sum([a for a in M.robust_successors.values()])
         
         self.J = sparse.bmat([
                        [ self.A11,  self.A12[:, CVX.keepalpha],   self.A13 ],
                        [ self.A21,  self.A22[:, CVX.keepalpha],   self.A23 ]], format='csc')
         
+        
+    def update_RHS(self, M, CVX):
+        
+        nr_robust_successors = sum([a for a in M.robust_successors.values()])
         nr_rows = len(M.states) + nr_robust_successors
         
         iters = sum([len(a) for a in M.param2stateAction.values()])
@@ -279,18 +281,19 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
             Deriv = sparse.linalg.spsolve(J, -Ju[:,K])[sI['s']].T @ sI['p']
         else:
             print('- Retrieve actual derivatives for {} parameters via LP'.format(len(K)))
-            Deriv = solve_cvx_single(J, Ju[:,K], sI, direction, method)
+            Deriv, _ = solve_cvx_single(J, Ju[:,K], sI, direction, method)
             
     else:
         Deriv = np.array([optimum])
     
     return m, K, Deriv
 
-
+import time
 def solve_cvx_single(J, Ju, sI, direction = GRB.MAXIMIZE, method = -1):
     
     m = gp.Model('CVX')
     m.Params.OutputFlag = 0
+    m.Params.Presolve = 0
     
     Deriv = np.zeros(Ju.shape[1])
     
@@ -299,8 +302,14 @@ def solve_cvx_single(J, Ju, sI, direction = GRB.MAXIMIZE, method = -1):
     m.addConstr(J @ x == -Ju)  
 
     m.setObjective(gp.quicksum(sI['p'] @ x[sI['s'],:]), direction)
+
+    # m.tune()
+    # m.getTuneResult(0)
+
+    start_time = time.time()
     m.optimize()
+    solve_time = time.time() - start_time
 
     Deriv = sI['p'] @ x.X[sI['s'], :] 
     
-    return Deriv
+    return Deriv, solve_time

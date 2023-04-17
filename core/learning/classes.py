@@ -22,7 +22,6 @@ class learner:
         
         self.SAMPLES_PER_STEP = samples_per_step
         self.args = args
-        self.args.instance = 'seed_{}'.format(seed)
         
         self._set_sampler(mode)
         
@@ -39,7 +38,7 @@ class learner:
         try:
             self.CVX.cvx.getTuneResult(0)
         except:
-            print('Ecception: could not set tuning results')
+            print('Exception: could not set tuning results')
         
         self.CVX.cvx.Params.NumericFocus = 3
         self.CVX.cvx.Params.ScaleFlag = 1
@@ -201,7 +200,7 @@ def sample_importance(L):
     Sample greedily based on importance factor
     """
 
-    print('Sample based on importance factor (expVisits * intervalWidth...')
+    print('Sample based on importance factor (expVisits * intervalWidth)...')
 
     importance, dtmc = parameter_importance_exp_visits(L.pmc, L.prmc, L.inst, L.CVX_opp)
     PAR = [max(importance, key=importance.get)]
@@ -236,8 +235,9 @@ def sample_derivative(L):
     G = gradient(L.prmc, L.args.robust_bound)
     
     # Update gradient object with current solution
-    G.update(L.prmc, L.CVX)
-    
+    G.update_LHS(L.prmc, L.CVX)
+    G.update_RHS(L.prmc, L.CVX)
+
     # Check if matrix has correct size
     assert G.J.shape[0] == G.J.shape[1]
     
