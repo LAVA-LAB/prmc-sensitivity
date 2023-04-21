@@ -6,7 +6,44 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 
-def load_csv_files(mypath):
+
+def simplify_instance(instance):
+    
+    print('Try to simplify instance:', instance)
+    
+    dic = {
+        'brp16_2': 'BRP (16,2)',
+        'brp32_3': 'BRP (32,3)',
+        'brp64_4': 'BRP (64,4)',
+        'brp512_5': 'BRP (512,5)',
+        'brp1024_6': 'BRP (1024,6)',
+        'crowds3_5': 'Crowds (3,5)',
+        'crowds6_5': 'Crowds (6,5)',
+        'crowds10_5': 'Crowds (10,5)',
+        'nand2_4': 'NAND (2,4)',
+        'nand5_10': 'NAND (5,10)',
+        'nand10_15': 'NAND (10,15)',
+        'virus': 'Virus',
+        'wlan0_param': 'WLAN0',
+        'csma2_4_param': 'CSMA (2,4)',
+        'coin4': 'Coin (4)',
+        'maze_simple_extended_m5': 'Maze',
+        'pomdp_drone_4-2-mem1-simple': 'Drone (mem1)',
+        'pomdp_drone_4-2-mem5-simple': 'Drone (mem5)',
+        'pomdp_satellite_36_sat_5_act_0_65_dist_5_mem_06': 'Satellite (36,5)',
+        'pomdp_prob_36_sat_065_dist_1_obs_diff_orb_len_40': 'Satellite(36,65',
+        }
+    
+    for d,v in dic.items():
+        if d in instance:
+            simplified = v
+            return simplified
+        
+    print('>>> Warning: Could not simplify instance name "{}"'.format(instance))
+    return instance
+
+
+def load_csv_files(mypath, simplify = True):
 
     # Get all files in provided folder
     filenames = next(os.walk(mypath), (None, None, []))[2]  # [] if no file
@@ -25,9 +62,22 @@ def load_csv_files(mypath):
         print('-- Read file "{}"'.format(file))
         df[i] = pd.read_json(os.path.join(mypath, file), typ='series')
         
+        # Determine the date at which this file was created
+        date_created_list = Path(file).stem.split('_')[-6:]
+        df[i]['Date'] = datetime(*map(int, date_created_list))
+        print('--- Created on:',df[i]['Date'])
+        
+        if 'Instance' in df[i]:
+            instance = Path(df[i]['Instance']).stem
+            if simplify:
+                df[i]['Instance'] = simplify_instance(instance)
+            else:
+                df[i]['Instance'] = instance
+        
     df_merged = pd.concat(df, axis=1).T
         
     return df_merged
+
 
 if __name__ == "__main__":
     
@@ -53,7 +103,10 @@ if __name__ == "__main__":
     mypath = os.path.join(root_dir, args.folder)
     
     print('- Path to search:',mypath)
-    df_merged = load_csv_files(mypath)
+    if args.mode == 'gridworld':
+        df_merged = load_csv_files(mypath, False)
+    else:
+        df_merged = load_csv_files(mypath, True)
     
     #####
     
@@ -70,7 +123,7 @@ if __name__ == "__main__":
         })
     
     # Model statistics and Problem 1 (differentiate all parameters explicitly)
-    df_outa = pd.concat([ df_K0[['Instance', 'Type', 'States', 'Parameters', 'Transitions', 'Solution']], df_out_add], axis=1)
+    df_outa = pd.concat([ df_K0[['Date', 'Instance', 'Type', 'States', 'Parameters', 'Transitions', 'Solution']], df_out_add], axis=1)
     
     keys = ['Max. derivatives', 'Difference %'] #'Max. validation',
     
@@ -124,17 +177,22 @@ if __name__ == "__main__":
         # For the gridworld experiments, drop the instance column (it's the same anyways)
         df_out = df_out.drop('Instance', axis=1)
         
-
-    #####
+        # Sort by 1) states and 2) parameters
+        df_out.sort_values(['Type', 'States', 'Parameters', 'Transitions'],
+                            ascending = [True, True, True, True],
+                            inplace = True)
         
-    # Sort by 1) states and 2) parameters
-    df_out.sort_values(['Type', 'States', 'Parameters', 'Transitions'],
-                        ascending = [True, True, True, True],
-                        inplace = True)
+    else:
+        
+        # Sort by 1) states and 2) parameters
+        df_out.sort_values(['Type', 'Date', 'States', 'Parameters', 'Transitions'],
+                            ascending = [True, True, True, True, True],
+                            inplace = True)
+    
+    # Drop create-on-date column (only used for sorting the DataFrame)
+    df_out = df_out.drop('Date', axis=1)
     
     #####
-    
-    print(df_out)
     
     df_out.to_csv(os.path.join(root_dir, args.table_name + '.csv'))
 

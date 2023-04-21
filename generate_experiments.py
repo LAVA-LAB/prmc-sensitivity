@@ -218,8 +218,7 @@ for name,suite in suites.items():
             
 
 text += \
-['''
- python3 create_table.py --folder '{}' --table_name '{}' --mode benchmark'''.format(OUTPUT_FOLDER, TABLE_NAME)]
+["python3 create_table.py --folder '{}' --table_name '{}' --mode benchmark".format(OUTPUT_FOLDER, TABLE_NAME)]
  
 # Save to file
 with open(r'{}'.format(Path(ROOT_DIR, BASH_OUT_FILE)), 'w') as fp:
@@ -228,8 +227,7 @@ with open(r'{}'.format(Path(ROOT_DIR, BASH_OUT_FILE)), 'w') as fp:
 print('\nExported full benchmark suite')   
  
 text_partial += \
-['''
- python3 create_table.py --folder '{}' --table_name '{}' --mode benchmark'''.format(OUTPUT_FOLDER_PARTIAL, TABLE_NAME_PARTIAL)]
+["python3 create_table.py --folder '{}' --table_name '{}' --mode benchmark".format(OUTPUT_FOLDER_PARTIAL, TABLE_NAME_PARTIAL)]
 
 # Save to file
 with open(r'{}'.format(Path(ROOT_DIR, BASH_OUT_FILE_PARTIAL)), 'w') as fp:
@@ -581,7 +579,7 @@ SHELL = ["#!/bin/bash",
          'echo -e "\\nStart learning experiments...\\n\\n";',
          'cd ..;',
          '''python3 run_learning.py --instance gridworld --model models/slipgrid_learning/pmc_size=20_params=100.drn --parameters models/slipgrid_learning/pmc_size=20_params=100_mle.json --formula 'Rmin=? [F "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --true_param_file models/slipgrid_learning/pmc_size=20_params=100.json --learning_iterations 10 --learning_steps 1000 --learning_samples_per_step 25;''',
-         '''python3 run_learning.py --instance drone --model models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn --formula 'P=? ["notbad" U "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --goal_label "{'goal','notbad'}" --default_sample_size 100 --learning_iterations 10 --learning_steps 1000 --learning_samples_per_step 25;'''
+         '''python3 run_learning.py --instance drone --model models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn --formula 'P=? ["notbad" U "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --goal_label "{'goal','notbad'}" --default_sample_size 100 --learning_iterations 5 --learning_steps 10000 --learning_samples_per_step 250;'''
          ]
 
 # Export bash file to perform grid world experiments
@@ -606,7 +604,7 @@ SHELL = ["#!/bin/bash",
          'echo -e "\\nStart learning experiments...\\n\\n";',
          'cd ..;',
          '''python3 run_learning.py --instance gridworld --model models/slipgrid_learning/pmc_size=20_params=100.drn --parameters models/slipgrid_learning/pmc_size=20_params=100_mle.json --formula 'Rmin=? [F "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --true_param_file models/slipgrid_learning/pmc_size=20_params=100.json --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 25;''',
-         '''python3 run_learning.py --instance drone --model models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn --formula 'P=? ["notbad" U "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --goal_label "{'goal','notbad'}" --default_sample_size 100 --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 25;'''
+         '''python3 run_learning.py --instance drone --model models/pomdp/drone/pomdp_drone_4-2-mem1-simple.drn --formula 'P=? ["notbad" U "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --goal_label "{'goal','notbad'}" --default_sample_size 100 --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 250;'''
          ]
 
 # Export bash file to perform grid world experiments
