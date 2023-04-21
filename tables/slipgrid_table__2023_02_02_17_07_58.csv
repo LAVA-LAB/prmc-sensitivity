@@ -1,5 +1,0 @@
-,instance,Type,Formula,Engine,States,Transitions,Parameters,Solution,Model parse [s],Model instantiate [s],Model verify [s],Num. derivatives,Differentiate one [s],Differentiate explicitly [s],LP (define matrices) [s],LP (solve) [s],Max. derivatives,Argmax. derivatives,Max. validation,Difference %
-2,"grid(10,10,double)",pMC,"Rmin=? [F ""goal""]",spsolve,199,595,10,1.882,0.040826,0.006763,0.001217,1,0.000977,0.010,0.021485,0.013,5.64e-01,v3,5.64e-01,-0.001
-3,"grid(50,50,double)",pMC,"Rmin=? [F ""goal""]",spsolve,4999,14995,50,5.037,0.658779,0.16028499999999998,0.024471999999999997,1,0.023160000000000004,1.158,0.5277689999999999,0.453,1.44e+00,v23,1.44e+00,-0.000
-0,"grid(10,10,double)",prMC,"Rmin=? [F ""goal""]",spsolve,199,595,10,115.964,0.0,0.037705999999999996,1.075871,1,0.001833,0.018,0.014261999999999999,0.014,6.56e-03,v3,6.56e-03,0.000
-1,"grid(50,50,double)",prMC,"Rmin=? [F ""goal""]",spsolve,4999,14995,50,"1,070.427",0.0,1.37167,26.585173,1,0.035383,1.769,0.288201,0.607,4.59e-02,v26,4.59e-02,0.000

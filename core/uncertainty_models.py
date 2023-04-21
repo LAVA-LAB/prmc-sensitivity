@@ -5,7 +5,6 @@ import itertools
 from core.polynomial import polynomial
 
 def Linf_polytope(center, size):
-    
     '''
     Generate matrix inequalities for the Linf norm around 'center', bounded by
     the given 'size', such that Ap <= b and
@@ -19,9 +18,8 @@ def Linf_polytope(center, size):
     # Retrieve dimension of polytope
     n = len(center)
 
-    # Initialize matrix
+    # Initialize matrix and vector
     A = np.kron(np.eye(n), np.array([[-1],[1]]))
-    
     b = np.zeros((2*n), dtype=object)
     
     for d in range(n):
@@ -30,33 +28,48 @@ def Linf_polytope(center, size):
         
     return A,b
 
-def Hoeffding_interval(center, confidence, parameter, min_probability):
-    
+def Hoeffding_interval(center, confidence, parameter):
     '''
     Compute polytopic uncertainty set, representing intervals obtained using
     Hoeffding's inequality
     Returns polytope of the form Ap <= b
     '''
     
+    # Minimum margin between [0,1] bounds and every transition probability
+    min_probability = 1e-6
+    
     alpha = np.sqrt(np.log(2/(1-confidence)) / 2)
     
     # Retrieve dimension of polytope
     n = len(center)
 
-    # Initialize matrix
+    # Initialize matrix and vector
     A = np.kron(np.eye(n), np.array([[-1],[1]]))
-    
     b = np.zeros((2*n), dtype=object)
     
+    '''
     # Possibly add extra constraints to avoid probabilities outside [0,1]
     A_add = []
     b_add = []
+    '''
     
     epsilon = alpha * np.sqrt(1/parameter.value)
     
     for d in range(n):
         # print('Interval for {} is [{}, {}]'.format(parameter, center[d]-epsilon, center[d]+epsilon))
         
+        if center[d] + epsilon > 1 - min_probability:
+            b[2*d+1] = 1 - min_probability
+        else:    
+            b[2*d+1] = polynomial(param = parameter, coeff = [ center[d], alpha], power = [0, -0.5])
+        
+        if center[d] - epsilon < min_probability:
+            b[2*d] = -min_probability
+        else:
+            b[2*d]   = polynomial(param = parameter, coeff = [-center[d], alpha], power = [0, -0.5])
+        
+        
+        '''
         b[2*d]   = polynomial(param = parameter, coeff = [-center[d], alpha], power = [0, -0.5])
         b[2*d+1] = polynomial(param = parameter, coeff = [ center[d], alpha], power = [0, -0.5])
         
@@ -68,7 +81,7 @@ def Hoeffding_interval(center, confidence, parameter, min_probability):
             A_entry[d] = 1
             
             A_add += [A_entry]
-            b_add += [1]
+            b_add += [1-min_probability]
             
         if center[d] - epsilon < min_probability:
             # print('- Add constraint for {}, d={}, to keep lower bound above {}'.format(parameter, d, min_probability))
@@ -86,6 +99,7 @@ def Hoeffding_interval(center, confidence, parameter, min_probability):
         
         A = np.concatenate((A, A_add))
         b = np.concatenate((b, b_add))
+        '''
         
     return A,b
 
@@ -104,7 +118,7 @@ def L1_polytope(center, size):
     # Retrieve dimension of polytope
     n = len(center)
 
-    # Initialize matrix
+    # Initialize matrix and vector
     A = np.zeros((2**n, n), dtype=float)
     b = np.zeros((2**n), dtype=object)
     
