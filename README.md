@@ -32,9 +32,10 @@ Gurobi is used to solve linear programs. Although you can solve optimization pro
 
 > **_NOTE:_**  Make sure to obtain an Academic Web License Service (WLS) License! Other options, such as a named-user license will not work in combination with the Docker container.
 
-After obtaining the license, download the license file (`Gurobi.lic`) and store it somewhere on your computer. To use the docker container, open a terminal and navigate to the folder which you want to use to synchronize results.
+After obtaining the license, download the license file (`Gurobi.lic`) and store it somewhere on your computer.
 
 ### Step 3: Run the Docker container
+To use the docker container, open a terminal and navigate to the folder which you want to use to synchronize results.
 Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` WLS license file, for example `/home/thom/gurobi_docker.lic` (it may be necessary to run the command using `sudo`):
 
 ```
