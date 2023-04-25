@@ -2,7 +2,7 @@
 
 This is an implementation of the approach proposed in the paper:
 
-- [1] "Efficient Sensitivity Analysis for Parametric Robust Markov Chains" by Thom Badings, Sebastian Junges, Ahmadreza Marandi, Ufuk Topcu, and Nils Jansen
+- [1] "Efficient Sensitivity Analysis for Parametric Robust Markov Chains" by Thom Badings, Sebastian Junges, Ahmadreza Marandi, Ufuk Topcu, and Nils Jansen (CAV 2023)
 
 The methods in this artifact can be used to compute the partial derivatives of the solution functions for parametric Markov chains (pMCs) and parametric robust Markov chains (prMCs).
 More specifically, we compute the $k$ highest (or lowest) partial derivatives of the solution function with respect to the parameters of these Markov models.
