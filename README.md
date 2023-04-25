@@ -30,15 +30,15 @@ Our Docker container is built upon containers for [Gurobi Optimization](https://
 ### Step 2: Obtain a WLS Gurobi license
 Gurobi is used to solve linear programs. Although you can solve optimization problems of limited size without a Gurobi license, a license is required to run our bigger benchmarks. Luckily, Gurobi offers free academic licenses. To obtain such a license, you can [follow the steps on this page](https://www.gurobi.com/features/academic-wls-license/). 
 
-{-Important: Make sure to obtain an Academic Web License Service (WLS) License! Other options, such as a named-user license will not work in combination with the Docker container.-}
+> **_NOTE:_**  Make sure to obtain an Academic Web License Service (WLS) License! Other options, such as a named-user license will not work in combination with the Docker container.
 
 After obtaining the license, download the license file (`Gurobi.lic`) and store it somewhere on your computer. To use the docker container, open a terminal and navigate to the folder which you want to use to synchronize results.
 
 ### Step 3: Run the Docker container
-Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` file:
+Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` file (it may be necessary to run the command using `sudo`):
 
 ```
-sudo docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it cav23
+docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it cav23
 ```
 
 You will see a prompt inside the docker container. The README in this folder is what you are reading. Now you are ready to run the code for a single model (Section 3) or to replicate the experiments presented in [1] (Section 4).
@@ -75,7 +75,7 @@ python run_pmc.py --model <path to model file> --parameters <path to parameters 
 For example, to compute the $k=10$ highest derivatives for the pMC of the 50x50 slippery grid world benchmark (see [1] for details) with $|V|=100$ parameters, you run:
 
 ```
-timeout 3600s python3 run_pmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
+python3 run_pmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
 ```
 
 The command first computes the solution of the given formula for this pMC (see Section 6 for details on the input model format), given the parameter instantiation provided in the JSON file.
@@ -85,7 +85,7 @@ The results are then saved to a JSON file in the `output/` folder.
 The equivalent command to compute derivatives for the corresponding prMC is:
 
 ```
-timeout 3600s python3 run_prmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
+python3 run_prmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
 ```
 
 There are a variety of arguments that you can add to these scripts, in order to further customize the execution. See Section 5 for a complete overview of all available arguments.
@@ -95,25 +95,25 @@ There are a variety of arguments that you can add to these scripts, in order to 
 You can reproduce the figures and tables presented in our paper [1] by executing one of the shell scripts in the `experiments/` folder.
 Before running the experiments, we recommend to remove any existing files/folders in the output/ folder (except the .keep file).
 
-- `cd experiments; bash run_experiments_full.sh` runs the full set of experiments as presented in [1]. Expected run time: multiple days.
-- `cd experiments; bash run_experiments_partial.sh` runs a partial set of experiments. Expected run time: 1.5 hours.
+- `cd experiments; bash all_experiments_full.sh` runs the full set of experiments as presented in [1]. Expected run time: approximately a day for the grid worlds and benchmarks, and another two days for the learning application.
+- `cd experiments; bash all_experiments_partial.sh` runs a partial set of experiments. Expected run time: 1.5 hours.
 
 Both shell scripts in turn run three different sets of experiments, which can also be run independently from each other:
 
-1. Computing derivatives on a variety of slippery grid world problems (`experiments/grid_world.sh` and `experiments/grid_world_partial.sh`).
-2. Computing derivatives on a set of benchmarks from the literature (`experiments/benchmarks.sh` and `experiments/benchmarks_partial.sh`).
-3. An application of our method in a learning framework (`run_learning.py`).
+1. Computing derivatives on a variety of slippery grid world problems (`experiments/grid_world.sh` or `experiments/grid_world_partial.sh`).
+2. Computing derivatives on a set of benchmarks from the literature (`experiments/benchmarks.sh` or `experiments/benchmarks_partial.sh`).
+3. An application of our method in a learning framework on two different models (`run_learning.py`).
 
 After running the experiments, the figures and tables presented in [1] can be reproduced as follows:
 
-- Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/_slipgrid_table_partial.tex`). This data is also exported to a CSV file with the same name.
+- Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/slipgrid_table_partial.tex`). This data is also exported to a CSV file with the same name.
 
 - Table 3 (results for the benchmarks from the literature) is obtained through the LaTeX table exported to `output/benchmarks_table.tex` (or `output/benchmarks_partial_table.tex`). This data is also exported to a CSV file with the same name.
 
 - Figure 7 (results for the learning framework) is obtained using the data in `output/learning_gridworld_{datetime}.csv` and `output/learning_drone_{datetime}.csv`, where `{datetime}` is a datetime stamp of when file is created. A Python version of the plots in Figure 7 is exported to `output/learning_gridworld_{datetime}.pdf` and `output/learning_drone_{datetime}.pdf`.
 
 ### Recreating experiment shell scripts
-If you wish to change the experiment settings or reproduce the shell scripts (and the corresponding model), run the `generate_experiments.py` file in the root of this repository.
+If you wish to change the experiment settings or reproduce the shell scripts (and the corresponding model), run the `generate_experiments.py` Python file in the root of this repository.
 This script (re)creates the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder.
 
 # 5. Overview of available arguments
@@ -165,7 +165,7 @@ Using explicit format can significantly reduce the time to parse large models, a
 See the .drn files in the `models/slipgrid/` folder for examples of how these models are defined.
 
 ### Parametric robust Markov chains
-When running `run_prmc.py` for prMCs, the script actually loads a pMC and extends this model into a prMC, by creating uncertainty sets around the provided parameter instantiation.
+When running `run_prmc.py` for prMCs, the script actually loads a pMC and extends this model into a prMC, by creating uncertainty sets (of the type passed to the `--uncertainty_model` argument) around the provided parameter instantiation.
 
 ### Parameter valuation files
 A parameter instantiation can be passed through the `--default_valuation` argument (see Section 5), or by providing a file using the `--parameters` argument.
@@ -189,5 +189,7 @@ For pMCs, it is also possible to simply omit the sample sizes, for example as in
 The included Docker image of our artifact is based on Docker images of [Gurobi](https://hub.docker.com/r/gurobi/optimizer) and [Stormpy](https://www.stormchecker.org/documentation/obtain-storm/docker.html). After making changing to the source code, the Docker container must be built again using the included Dockerfile. Rebuilding the image can be done by executing the following command in the root directory of the artiact (here, 1.0 indicates the version):
 
 ```
-sudo docker build -t sensitivity:1.0 .
+docker build -t sensitivity:1.0 .
 ```
+
+If Docker returns permission errors, consider running the command above with `sudo`.
