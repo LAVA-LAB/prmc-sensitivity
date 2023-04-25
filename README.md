@@ -92,8 +92,16 @@ There are a variety of arguments that you can add to these scripts, in order to 
 
 # 4. Reproducing results in the paper
 
-You can reproduce the figures and tables presented in our paper [1] by executing one of the shell scripts in the `experiments/` folder.
+### Creating experiment shell scripts
 Before running the experiments, we recommend to remove any existing files/folders in the output/ folder (except the .keep file).
+Then, run the following command to (re)create the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder:
+
+`python3 generate_experiments.py`
+
+> **_NOTE:_** While our artifact comes with pregenerated experiment shell scripts, it is still necessary to run the `generate_experiments.py` script because some of the grid world models are too large (100-150 MB) to include via the Git repository.
+
+### Running experiments
+Then, to reproduce the figures and tables presented in our paper [1], execute one of the shell scripts in the `experiments/` folder:
 
 - `cd experiments; bash all_experiments_full.sh` runs the full set of experiments as presented in [1]. Expected run time: approximately a day for the grid worlds and benchmarks, and another two days for the learning application.
 - `cd experiments; bash all_experiments_partial.sh` runs a partial set of experiments. Expected run time: 1.5 hours.
@@ -104,17 +112,18 @@ Both shell scripts in turn run three different sets of experiments, which can al
 2. Computing derivatives on a set of benchmarks from the literature (`experiments/benchmarks.sh` or `experiments/benchmarks_partial.sh`).
 3. An application of our method in a learning framework on two different models (`run_learning.py`).
 
+### Recreating figures and tables
 After running the experiments, the figures and tables presented in [1] can be reproduced as follows:
 
 - Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/slipgrid_table_partial.tex`). This data is also exported to a CSV file with the same name.
 
 - Table 3 (results for the benchmarks from the literature) is obtained through the LaTeX table exported to `output/benchmarks_table.tex` (or `output/benchmarks_partial_table.tex`). This data is also exported to a CSV file with the same name.
 
-- Figure 7 (results for the learning framework) is obtained using the data in `output/learning_gridworld_{datetime}.csv` and `output/learning_drone_{datetime}.csv`, where `{datetime}` is a datetime stamp of when file is created. A Python version of the plots in Figure 7 is exported to `output/learning_gridworld_{datetime}.pdf` and `output/learning_drone_{datetime}.pdf`.
+- Figure 5 (scatter plot for times to compute derivatives vs. solutions) is obtained using the data in `output/scatter_time_verify_vs_differentiating.csv`. This CSV file contains the model type, verification time (Verify), time to compute one derivative (OneDeriv), the time to compute the highest derivative (Highest), and the number of parameters of each instance (Parameters).
 
-### Recreating experiment shell scripts
-If you wish to change the experiment settings or reproduce the shell scripts (and the corresponding model), run the `generate_experiments.py` Python file in the root of this repository.
-This script (re)creates the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder.
+- Figure 6 (scatter plot for times to compute $k$ derivatives vs. all derivatives) is obtained using the data in `output/scatter_time_highest1_vs_all.csv` (left subfigure, for $k=1$) and `output/scatter_time_highest10_vs_all.csv` (right subfigure, for $k=10$). This CSV file contains the model type, time to compute the $k$ highest derivatives (Highest), time to compute all derivatives (All), and the number of parameters of each instance (Parameters). The time to compute all derivatives is extrapolated from the time to compute 10 derivatives explicitly.
+
+- Figure 7 (results for the learning framework) is obtained using the data in `output/learning_gridworld_{datetime}.csv` and `output/learning_drone_{datetime}.csv`, where `{datetime}` is a datetime stamp of when file is created. A Python version of the plots in Figure 7 is exported to `output/learning_gridworld_{datetime}.pdf` and `output/learning_drone_{datetime}.pdf`.
 
 # 5. Overview of available arguments
 
