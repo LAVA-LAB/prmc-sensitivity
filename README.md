@@ -16,13 +16,13 @@ We provide a docker container. To use the container, you can follow the steps be
 We assume you have Docker installed (if not, see the [Docker installation guide](https://docs.docker.com/get-docker/)). Then, run:
 
 ```
-docker pull thombadings/sensitivity:cav23
+docker pull thombadings/prmc_sensitivity:cav23
 ```
 
 or in case you downloaded this container from an (unpacked) archive:
 
 ```
-docker load -i sensitivity_cav23_docker.tar
+docker load -i prmc_sensitivity_cav23_docker.tar
 ```
 
 Our Docker container is built upon containers for [Gurobi Optimization](https://hub.docker.com/r/gurobi/optimizer) and for the [probabilistic model checker Storm](https://www.stormchecker.org/documentation/obtain-storm/docker.html) (click the links to the documentation for details).
@@ -38,7 +38,7 @@ After obtaining the license, download the license file (`Gurobi.lic`) and store 
 Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` WLS license file, for example `/home/thom/gurobi_docker.lic` (it may be necessary to run the command using `sudo`):
 
 ```
-docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it cav23
+docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it prmc_sensitivity
 ```
 
 You will see a prompt inside the docker container. The README in this folder is what you are reading. Now you are ready to run the code for a single model (Section 3) or to replicate the experiments presented in [1] (Section 4).
@@ -198,7 +198,7 @@ For pMCs, it is also possible to simply omit the sample sizes, for example as in
 The included Docker image of our artifact is based on Docker images of [Gurobi](https://hub.docker.com/r/gurobi/optimizer) and [Stormpy](https://www.stormchecker.org/documentation/obtain-storm/docker.html). After making changing to the source code, the Docker container must be built again using the included Dockerfile. Rebuilding the image can be done by executing the following command in the root directory of the artiact (here, 1.0 indicates the version):
 
 ```
-docker build -t sensitivity:1.0 .
+docker build -t prmc_sensitivity:1.0 .
 ```
 
 If Docker returns permission errors, consider running the command above with `sudo`.
