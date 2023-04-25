@@ -38,7 +38,7 @@ After obtaining the license, download the license file (`Gurobi.lic`) and store 
 Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` WLS license file, for example `/home/thom/gurobi_docker.lic` (it may be necessary to run the command using `sudo`):
 
 ```
-docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it prmc_sensitivity
+docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it prmc_sensitivity:cav23
 ```
 
 You will see a prompt inside the docker container. The README in this folder is what you are reading. Now you are ready to run the code for a single model (Section 3) or to replicate the experiments presented in [1] (Section 4).
