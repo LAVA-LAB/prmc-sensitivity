@@ -1,0 +1,3 @@
+If you only see this file in the experiments folder, that means that you still have to generate the experiment scripts. Specifically, in the root folder of the artifact, run:
+
+python3 generate_experiments.py

@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Dec 20 15:22:11 2022
-
-@author: Thom Badings
-"""
-
 import numpy as np
 from numpy.linalg import inv
 from scipy import sparse
