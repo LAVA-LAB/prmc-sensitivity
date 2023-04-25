@@ -96,7 +96,9 @@ There are a variety of arguments that you can add to these scripts, in order to 
 Before running the experiments, we recommend to remove any existing files/folders in the output/ folder (except the .keep file).
 Then, run the following command to (re)create the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder:
 
-`python3 generate_experiments.py`
+```
+python3 generate_experiments.py
+```
 
 > **_NOTE:_** While our artifact comes with pregenerated experiment shell scripts, it is still necessary to run the `generate_experiments.py` script because some of the grid world models are too large (100-150 MB) to include via the Git repository.
 
