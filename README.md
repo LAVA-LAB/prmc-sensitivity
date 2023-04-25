@@ -8,6 +8,10 @@ The methods in this artifact can be used to compute the partial derivatives of t
 More specifically, we compute the $k$ highest (or lowest) partial derivatives of the solution function with respect to the parameters of these Markov models.
 The artifact also contains an implementation of these methods in a learning framework, in which these derivatives are used to guide the exploration process (i.e., determining where to sample).
 
+Quickstart guide:
+- See Section 1 for how to run from the Docker container
+- See Section 4 for how to reproduce results presented in paper [1]
+
 # 1. Run from a Docker container
 
 We provide a docker container. To use the container, you can follow the steps below.
@@ -48,16 +52,18 @@ You will see a prompt inside the docker container. The README in this folder is 
 
 While for users, we recommend to use the Docker container, you can also build our tool from source as follows:
 
-- Install [Storm](https://www.stormchecker.org/documentation/obtain-storm/build.html), [Pycarl](https://moves-rwth.github.io/pycarl/installation.html#installation-steps) and [Stormpy](https://moves-rwth.github.io/stormpy/installation.html#installation-steps) using the instructions in the stormpy documentation.
+1. Install [Storm](https://www.stormchecker.org/documentation/obtain-storm/build.html), [Pycarl](https://moves-rwth.github.io/pycarl/installation.html#installation-steps) and [Stormpy](https://moves-rwth.github.io/stormpy/installation.html#installation-steps) using the instructions in the stormpy documentation.
 
   Note that we have tested the artifact using Storm and Stormpy version 1.7.
   Preferably, install pycarl and stormpy in a virtual environment.
 
-- Install [Gurobi](https://www.gurobi.com/downloads/), and obtain a Gurobi license and activate it on your machine.
+2. Install [Gurobi](https://www.gurobi.com/downloads/), and obtain a Gurobi license and activate it on your machine. For example, for an [(academic) named-user license](https://www.gurobi.com/features/academic-named-user-license/), run the `grbgetkey` command with your obtained license key (recall that for usage with Docker, you need a WLS license).
 
-- Install the Python dependencies with:
+3. Install the Python dependencies with:
 
-  `pip install -r requirements.txt`
+  ```
+  pip install -r requirements.txt
+  ```
 
 # 3. Running for a single model
 
