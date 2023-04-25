@@ -174,7 +174,7 @@ for name,suite in suites.items():
       for mode in ['full', 'partial']:
         for i,exp in suite.items():
         
-            if mode == 'partial' and i > 0:
+            if mode == 'partial' and (i > 0 or name == 'satellite'):
                 break
         
             if mode == 'full':
