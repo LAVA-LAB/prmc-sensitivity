@@ -112,8 +112,12 @@ python3 generate_experiments.py
 ### Running experiments
 Then, to reproduce the figures and tables presented in our paper [1], execute one of the shell scripts in the `experiments/` folder:
 
-- `cd experiments; bash all_experiments_full.sh` runs the full set of experiments as presented in [1]. Expected run time: approximately a day for the grid worlds and standard benchmarks, and another two days for the learning application.
-- `cd experiments; bash all_experiments_partial.sh` runs a partial set of experiments. Expected run time: 45 minutes.
+- `cd experiments; bash all_experiments_full.sh` runs the full set of experiments as presented in [1]. 
+    * Expected run time: 24 hours for the grid world and standard benchmarks, plus 48 hours for the learning applications
+    * Resource requirements: Tested using a computer with a 4GHz Intel Core i9 CPU and 64 GB RAM (only Gurobi running multi-threaded)
+- `cd experiments; bash all_experiments_partial.sh` runs a partial set of experiments. 
+    * Expected run time: 1 hour
+    * Resource requirements: Tested using a computer with a 1.3GHz Intel Core i7 CPU and 16 GB RAM (only Gurobi running multi-threaded)
 
 Both shell scripts in turn run three different sets of experiments, which can also be run independently from each other:
 
