@@ -35,7 +35,7 @@ Or in case you downloaded this container from an (unpacked) archive (loading the
 docker load -i prmc_sensitivity_cav23_docker.tar
 ```
 
-Our Docker container is built upon containers for [Gurobi Optimization](https://hub.docker.com/r/gurobi/optimizer) and for the [probabilistic model checker Storm](https://www.stormchecker.org/documentation/obtain-storm/docker.html) (click the links to the documentation for details).
+Our Docker container is built upon a container for the [probabilistic model checker Storm](https://www.stormchecker.org/documentation/obtain-storm/docker.html), on top of which we build Gurobi and install the Python dependencies (see the Dockerfile in this artifact for details).
 
 ### Step 2: Obtain a WLS Gurobi license
 Gurobi is used to solve linear programs. Although you can solve optimization problems of limited size without a Gurobi license, a license is required to run our bigger benchmarks. Luckily, Gurobi offers free academic licenses. To obtain such a license, [follow the steps on this page](https://www.gurobi.com/features/academic-wls-license/). 
@@ -79,7 +79,7 @@ There are three Python files that can be run:
 A miminal command to compute derivatives for a pMC is as follows:
 
 ```
-python run_pmc.py --model <path to model file> --parameters <path to parameters file> --formula <formula to check> --num_deriv <number of derivatives to compute>
+python run_pmc.py --model <path-to-model-file> --parameters <path-to-parameters-file> --formula <formula-to-check> --num_deriv <number-of-derivatives-to-compute>
 ```
 
 For example, to compute the $k=10$ highest derivatives for the pMC of the 50x50 slippery grid world benchmark (see [1] for details) with $|V|=100$ parameters, you run:
@@ -108,7 +108,9 @@ There are a variety of arguments that you can add to these scripts, in order to 
 
 # 4. Reproducing results in the paper
 
-### Creating experiment shell scripts
+You can reproduce the results presented in [1] by following the three steps below.
+
+### Step 1: Creating experiment shell scripts
 Before running the experiments, we recommend to remove any existing files/folders in the output/ folder (except the .keep file).
 Then, run the following command to (re)create the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder:
 
@@ -118,7 +120,7 @@ python3 generate_experiments.py
 
 > **_NOTE:_** While our artifact comes with pregenerated experiment shell scripts, it is still necessary to run the `generate_experiments.py` script because some of the grid world models are too large (100-150 MB) to include via the Git repository.
 
-### Running experiments
+### Step 2: Running experiments
 Then, to reproduce the figures and tables presented in our paper [1], execute one of the shell scripts in the `experiments/` folder:
 
 - `cd experiments; bash all_experiments_full.sh` runs the full set of experiments as presented in [1]. 
@@ -134,7 +136,7 @@ Both shell scripts in turn run three different sets of experiments, which can al
 2. Computing derivatives on a set of benchmarks from the literature (`experiments/benchmarks.sh` or `experiments/benchmarks_partial.sh`).
 3. An application of our method in a learning framework on two different models (`run_learning.py`).
 
-### Recreating figures and tables
+### Step 3: Recreating figures and tables
 After running the experiments, the figures and tables presented in [1] can be reproduced as follows:
 
 - Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/slipgrid_table_partial.tex`). This data is also exported to a CSV file with the same name.
