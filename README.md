@@ -98,6 +98,12 @@ The equivalent command to compute derivatives for the corresponding prMC is:
 python3 run_prmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
 ```
 
+An example to learn the learning framework for a 20x20 grid world with 100 terrain types (for all modelled exploration strategies, with 100 steps of obtaining 25 additional sample) is:
+
+```
+python3 run_learning.py --instance gridworld --model models/slipgrid_learning/pmc_size=20_params=100.drn --parameters models/slipgrid_learning/pmc_size=20_params=100_mle.json --formula 'Rmin=? [F "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --true_param_file models/slipgrid_learning/pmc_size=20_params=100.json --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 25;
+```
+
 There are a variety of arguments that you can add to these scripts, in order to further customize the execution. See Section 5 for a complete overview of all available arguments.
 
 # 4. Reproducing results in the paper
