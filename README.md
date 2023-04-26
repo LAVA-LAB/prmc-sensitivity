@@ -141,7 +141,7 @@ Both shell scripts in turn run three different sets of experiments, which can al
 ### Step 3: Recreating figures and tables
 After running the experiments, the figures and tables presented in [1] can be reproduced as follows:
 
-- Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/slipgrid_table_partial.tex`). This data is also exported to a CSV file with the same name.
+- Tables 1 and 2 (results for the grid world experiments) are obtained through the LaTeX table exported to `output/slipgrid_table.tex` (or `output/slipgrid_partial_table.tex`). This data is also exported to a CSV file with the same name.
 
 - Table 3 (results for the benchmarks from the literature) is obtained through the LaTeX table exported to `output/benchmarks_table.tex` (or `output/benchmarks_partial_table.tex`). This data is also exported to a CSV file with the same name.
 
