@@ -29,7 +29,7 @@ We assume you have Docker installed (if not, see the [Docker installation guide]
 docker pull thombadings/prmc_sensitivity:cav23
 ```
 
-Or in case you downloaded this container from an (unpacked) archive:
+Or in case you downloaded this container from an (unpacked) archive (loading the container an take a few minutes):
 
 ```
 docker load -i prmc_sensitivity_cav23_docker.tar
