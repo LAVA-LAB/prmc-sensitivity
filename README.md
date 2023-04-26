@@ -18,6 +18,8 @@ Contents of this ReadMe:
 6. [Defining parametric (robust) Markov chains](#6-defining-parametric-robust-markov-chains)
 7. [Rebuilding the Docker container](#7-rebuilding-the-docker-container)
 
+We have tested the artifact using Python 3.10, Storm/Stormpy 1.7, Gurobi/Gurobipy 10.0.0, and Docker 23.0.4. The source code is available on GitHub via [https://github.com/LAVA-LAB/prmc-sensitivity](https://github.com/LAVA-LAB/prmc-sensitivity).
+
 # 1. Run from a Docker container (preferred)
 
 The preferred way to run our code is using the Docker container that we provide.
