@@ -58,7 +58,7 @@ You will see a prompt inside the docker container. The README in this folder is 
 
 # 2. Installation from source
 
-While for users, we recommend to use the Docker container, you can also build our tool from source as follows:
+While for users, we recommend using the Docker container, you can also build our tool from source as follows:
 
 1. Install [Storm](https://www.stormchecker.org/documentation/obtain-storm/build.html), [Pycarl](https://moves-rwth.github.io/pycarl/installation.html#installation-steps) and [Stormpy](https://moves-rwth.github.io/stormpy/installation.html#installation-steps) using the instructions in the stormpy documentation. We have tested the artifact using Storm and Stormpy version 1.7. Preferably, install pycarl and stormpy in a virtual environment.
 
@@ -78,7 +78,7 @@ There are three Python files that can be run:
 2. `run_prmc.py` - Compute partial derivatives for a prMC
 3. `run_learning.py` - Using derivatives to guide sampling in a learning framework
 
-A miminal command to compute derivatives for a pMC is as follows:
+A minimal command to compute derivatives for a pMC is as follows:
 
 ```
 python run_pmc.py --model <path-to-model-file> --parameters <path-to-parameters-file> --formula <formula-to-check> --num_deriv <number-of-derivatives-to-compute>
@@ -100,27 +100,25 @@ The equivalent command to compute derivatives for the corresponding prMC is:
 python3 run_prmc.py --instance "grid(50,100,double)" --model 'models/slipgrid/pmc_size=50_params=100.drn' --parameters 'models/slipgrid/pmc_size=50_params=100_mle.json' --formula 'Rmin=? [F "goal"]' --num_deriv 10;
 ```
 
-An example to learn the learning framework for a 20x20 grid world with 100 terrain types (for all modelled exploration strategies, with 100 steps of obtaining 25 additional sample) is:
+An example to learn the learning framework for a 20x20 grid world with 100 terrain types (for all modeled exploration strategies, with 100 steps of obtaining 25 additional samples) is:
 
 ```
 python3 run_learning.py --instance gridworld --model models/slipgrid_learning/pmc_size=20_params=100.drn --parameters models/slipgrid_learning/pmc_size=20_params=100_mle.json --formula 'Rmin=? [F "goal"]' --output_folder 'output/learning/' --num_deriv 1 --robust_bound 'upper' --uncertainty_model 'Hoeffding' --true_param_file models/slipgrid_learning/pmc_size=20_params=100.json --learning_iterations 1 --learning_steps 100 --learning_samples_per_step 25;
 ```
 
-There are a variety of arguments that you can add to these scripts, in order to further customize the execution. See Section 5 for a complete overview of all available arguments.
+There are a variety of arguments that you can add to these scripts in order to customize the execution further. See Section 5 for a complete overview of all available arguments.
 
 # 4. Reproducing results in the paper
 
 You can reproduce the results presented in [1] by following the three steps below.
 
 ### Step 1: Creating experiment shell scripts
-Before running the experiments, we recommend to remove any existing files/folders in the output/ folder (except the .keep file).
+Before running the experiments, we recommend removing any existing result files/folders in the output/ folder.
 Then, run the following command to (re)create the shell scripts in the `experiments/` folder, as well as the corresponding models (e.g., the randomized slippy grid worlds) in the `models/` folder:
 
 ```
 python3 generate_experiments.py
 ```
-
-> **_NOTE:_** While our artifact comes with pregenerated experiment shell scripts, it is still necessary to run the `generate_experiments.py` script because some of the grid world models are too large (100-150 MB) to include via the Git repository.
 
 ### Step 2: Running experiments
 Then, to reproduce the figures and tables presented in our paper [1], execute one of the shell scripts in the `experiments/` folder:
@@ -132,7 +130,7 @@ Then, to reproduce the figures and tables presented in our paper [1], execute on
     * Expected run time: 1 hour
     * Resource requirements: Tested using a computer with a 1.3GHz Intel Core i7 CPU and 16 GB RAM (only Gurobi running multi-threaded)
 
-Both shell scripts in turn run three different sets of experiments, which can also be run independently from each other:
+Both shell scripts, in turn, run three different sets of experiments, which can also be run independently from each other:
 
 1. Computing derivatives on a variety of slippery grid world problems (`experiments/grid_world.sh` or `experiments/grid_world_partial.sh`).
 2. Computing derivatives on a set of benchmarks from the literature (`experiments/benchmarks.sh` or `experiments/benchmarks_partial.sh`).
@@ -149,7 +147,7 @@ After running the experiments, the figures and tables presented in [1] can be re
 
 - Figure 6 (scatter plot for times to compute $k$ derivatives vs. all derivatives) is obtained using the data in `output/scatter_time_highest1_vs_all.csv` (left subfigure, for $k=1$) and `output/scatter_time_highest10_vs_all.csv` (right subfigure, for $k=10$). This CSV file contains the model type, time to compute the $k$ highest derivatives (Highest), time to compute all derivatives (All), and the number of parameters of each instance (Parameters). The time to compute all derivatives is extrapolated from the time to compute 10 derivatives explicitly.
 
-- Figure 7 (results for the learning framework) is obtained using the data in `output/learning_gridworld_{datetime}.csv` and `output/learning_drone_{datetime}.csv`, where `{datetime}` is a datetime stamp of when file is created. A Python version of the plots in Figure 7 is exported to `output/learning_gridworld_{datetime}.pdf` and `output/learning_drone_{datetime}.pdf`.
+- Figure 7 (results for the learning framework) is obtained using the data in `output/learning_gridworld_{datetime}.csv` and `output/learning_drone_{datetime}.csv`, where `{datetime}` is a datetime stamp of when the file is created. A Python version of the plots in Figure 7 is exported to `output/learning_gridworld_{datetime}.pdf` and `output/learning_drone_{datetime}.pdf`.
 
 # 5. Overview of available arguments
 
@@ -221,7 +219,7 @@ For pMCs, it is also possible to simply omit the sample sizes, for example as in
 
 # 7. Rebuilding the Docker container
 
-The included Docker image of our artifact is based on Docker images of [Gurobi](https://hub.docker.com/r/gurobi/optimizer) and [Stormpy](https://www.stormchecker.org/documentation/obtain-storm/docker.html). After making changing to the source code, the Docker container must be built again using the included Dockerfile. Rebuilding the image can be done by executing the following command in the root directory of the artiact (here, 1.0 indicates the version):
+The included Docker image of our artifact is based on Docker images of [Gurobi](https://hub.docker.com/r/gurobi/optimizer) and [Stormpy](https://www.stormchecker.org/documentation/obtain-storm/docker.html). After making changes to the source code, the Docker container must be built again using the included Dockerfile. Rebuilding the image can be done by executing the following command in the root directory of the artifact (here, 1.0 indicates the version):
 
 ```
 docker build -t prmc_sensitivity:1.0 .
