@@ -222,12 +222,6 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     m.Params.Method = method
     m.Params.Seed = 0
     m.Params.Crossover = 0
-
-    # m.Params.SimplexPricing = 3
-    # m.Params.NumericFocus = 3
-    # m.Params.ScaleFlag = 1
-    # m.Params.Presolve = 1
-    # m.Params.Crossover = 0
     
     print('--- Define optimization model...')
     
@@ -258,6 +252,17 @@ def solve_cvx_gurobi(J, Ju, sI, k, direction = GRB.MAXIMIZE,
     
     m.optimize()
     
+    if m.Status != 2:
+        print(  "\n--------------------------------------------------------------\n"
+                "ERROR: I could not solve the LP to compute this derivative. \n\n"
+                "If earlier in the code, a about the Slackness conditions was shown, this \n"
+                "indicates that the derivative is not defined for the given model. If so, this\n"
+                "error is supposed to be shown.\n\n"
+                "If no such warning was shown, run the code with the --verbose argument to inspect\n"
+                "more detailed output by Gurobi.\n"
+                "--------------------------------------------------------------\n")
+        raise Exception("Gurobi could not solve LP (status: {}; see the error message above).".format(m.Status))
+
     if slackvar:
         print('- Maximal slack value is {}'.format(np.max(np.abs(slack.X))))
     

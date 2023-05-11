@@ -95,7 +95,7 @@ class learner:
         
         if self.opposite:
             self.CVX_opp.solve(store_initial = True, verbose=self.args.verbose)
-            SLACK = self.CVX_opp.get_active_constraints(self.prmc, verbose=True)
+            SLACK = self.CVX_opp.get_active_constraints(self.prmc, verbose=False)
         
         
         

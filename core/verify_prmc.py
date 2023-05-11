@@ -340,6 +340,10 @@ class verify_prmc:
         
         self.active_constraints = {}
         
+        if len(self.alpha) == 0:
+            raise ValueError("The number of active constraints of the LP is zero, indicating that the derivative "
+                             "that I try to compute is not defined for this problem.")
+
         # Check if assumption is satisfied
         for i,(s,a) in enumerate(self.alpha.keys()):
             
@@ -376,7 +380,7 @@ class verify_prmc:
                         
             if not cns_needed == cns_active:
                 if verbose:
-                    print('\nError: bad number of active constraints encountered for ({},{})'.format(s,a))
+                    print('Warning: bad number of active constraints encountered for state-action pair ({},{})'.format(s,a))
                     print('Active constraints:', sum(alpha_nonzero))
                     print('Constraints needed:', cns_needed)
                        

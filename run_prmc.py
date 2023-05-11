@@ -92,4 +92,4 @@ if not args.no_export:
 
 current_time = datetime.now().strftime("%H:%M:%S")
 print('\nprMC code ended at {}\n'.format(current_time))
-print('=============================================')
+print('=============================================\n\n')

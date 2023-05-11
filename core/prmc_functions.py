@@ -221,11 +221,17 @@ def prmc_verify(prmc, pmc, args, verbose, T = False):
     
     print('Check complementary slackness...')
     
-    Sat = P.get_active_constraints(prmc, verbose = True)
-    if Sat:
-        print('- Warning: Slackness violated (trying to proceed...)')
+    violated = P.get_active_constraints(prmc, verbose = False)
+    if violated:
+        print(  "\n--------------------------------------------------------------\n"
+                "WARNING: The Slackness conditions of the LP solution are violated.\n\n"
+                "This is caused by an inproper nr. of active constraints in the LP for the prMC.\n"
+                "I will try to proceed for now, but this warning can mean that the derivative is\n"
+                "not defined, in which case you can encounter an error later in the program.\n\n"
+                "For details, see Section 5.2 of our paper: [Badings et al., 2023, CAV].\n"
+                "--------------------------------------------------------------")
     else:
-        print('- Slackness satisfied, proceed')
+        print('- Slackness conditions satisfied, proceed')
         
     solution = P.x_tilde[pmc.sI['s']] @ pmc.sI['p']
             
@@ -277,7 +283,8 @@ def prmc_derivative_LP(prmc, pmc, P, args, T = False):
         
     print('- Shape of J matrix:', G.J.shape, G.Ju.shape)
     
-    assert args.num_deriv <= G.Ju.shape[1]
+    if args.num_deriv > G.Ju.shape[1]:
+        raise ValueError("Abort, because the number of requested derivative is higher than the number of parameters.")
     
     optm, deriv['LP_idxs'], deriv['LP'] = solve_cvx_gurobi(G.J, G.Ju, pmc.sI, args.num_deriv,
                                 direction=direction, verbose=args.verbose)

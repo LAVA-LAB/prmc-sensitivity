@@ -29,7 +29,8 @@ def pmc_derivative_LP(pmc, J, Ju, args, T = False):
 
     '''    
     
-    assert args.num_deriv <= Ju.shape[1]
+    if args.num_deriv > Ju.shape[1]:
+        raise ValueError("Abort, because the number of requested derivative is higher than the number of parameters.")
     
     # Upper bound number of derivatives to the number of parameters
     args.num_deriv = min(args.num_deriv, len(pmc.parameters))
