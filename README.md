@@ -24,6 +24,8 @@ We have tested the artifact using Python 3.10, Storm/Stormpy 1.7, Gurobi/Gurobip
 
 The preferred way to run our code is using the Docker container that we provide.
 
+> **_NOTE:_** On Ubuntu, Docker binds by default to a socket that other users can only access using sudo. Thus, it may be necessary to run Docker commands using sudo. Alternatively, one can follow [this guide on the Docker website](https://docs.docker.com/engine/install/linux-postinstall/) to avoid having to run with sudo.
+
 ### Step 1: Pull or download the Docker container
 We assume you have Docker installed (if not, see the [Docker installation guide](https://docs.docker.com/get-docker/)). Then, run:
 
@@ -48,7 +50,7 @@ After obtaining the license, download the license file (`Gurobi.lic`) and store 
 
 ### Step 3: Run the Docker container
 To use the docker container, open a terminal and navigate to the folder which you want to use to synchronize results.
-Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` WLS license file, for example `/home/thom/gurobi_docker.lic` (it may be necessary to run the command using `sudo`):
+Then, run the following command, where you replace `{PATH_TO_GUROBI_LICENSE_FILE}` by the path to the `Gurobi.lic` WLS license file, for example `/home/thom/gurobi_docker.lic`:
 
 ```
 docker run --env=GRB_CLIENT_LOG=3 --volume={PATH_TO_GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro --mount type=bind,source="$(pwd)",target=/opt/sensitivity/output -it thombadings/prmc_sensitivity:cav23
@@ -225,4 +227,4 @@ The included Docker image of our artifact is based on Docker images of [Gurobi](
 docker build -t prmc_sensitivity:1.0 .
 ```
 
-If Docker returns permission errors, consider running the command above with `sudo`.
+If Docker returns permission errors, consider running the command above with `sudo` (or see the note earlier in this ReadMe for avoid having to run using sudo).
