@@ -1,7 +1,7 @@
 import argparse
 from ast import literal_eval
 
-def parse_main(manualModel=None, learning=False):
+def parse_main(manualModel=None, learning=False, manual_args=None):
     """
     Function to parse arguments provided
 
@@ -124,8 +124,11 @@ def parse_main(manualModel=None, learning=False):
     
     # Now, parse the command line arguments and store the
     # values in the `args` variable
-    args = parser.parse_args()    
-    
+    if manual_args:
+        args = parser.parse_args(manual_args)
+    else:
+        args = parser.parse_args()
+
     if args.goal_label is not None:
         args.goal_label = literal_eval(args.goal_label)
         assert type(args.goal_label) == set

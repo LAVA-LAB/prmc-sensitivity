@@ -14,7 +14,20 @@ import numpy as np
 import pandas as pd
 
 # Parse arguments
-args = parse_main(learning = True)
+manual_args = ["--instance", "gridworld",
+               "--model", "models/slipgrid_learning/pmc_size=20_params=100.drn",
+               "--parameters", "models/slipgrid_learning/pmc_size=20_params=100_mle.json",
+               "--formula", 'Rmin=? [F "goal"]',
+               "--output_folder", 'output/learning/',
+               "--num_deriv", "1",
+               "--robust_bound", 'upper',
+               "--uncertainty_model", 'Hoeffding',
+               "--true_param_file", "models/slipgrid_learning/pmc_size=20_params=100.json",
+               "--learning_iterations", "1",
+               "--learning_steps", "1",
+               "--learning_samples_per_step", "25"]
+args = parse_main(learning = True, manual_args = manual_args)
+
 args.no_gradient_validation = True
 
 args.root_dir = os.path.dirname(os.path.abspath(__file__))
