@@ -143,7 +143,9 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
                         
                     if verbose:
                         print('Create parameter {} for ({},{})'.format(v, s.id, a.id))
-                        
+
+                    M.states_dict[s.id].actions_dict[a.id].storm_parameter = v
+
                     w = M.parameters[v]
                         
                     # Keep track of to which state-action pairs each parameter belongs
@@ -151,8 +153,6 @@ def pmc2prmc(pmc_model, pmc_parameters, pmc_scheduler, point, sample_size, args,
                         M.param2stateAction[v] += [(s.id, a.id)]
                     else:
                         M.param2stateAction[v] = [(s.id, a.id)]
-
-
 
                     if uncertainty_model == Hoeffding_interval:
                         # If Hoeffding's based uncertainty set is used, also provide confidence level
